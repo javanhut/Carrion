@@ -6,11 +6,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/javanhut/TheCarrionLanguage/src/ast"
-	"github.com/javanhut/TheCarrionLanguage/src/lexer"
-	"github.com/javanhut/TheCarrionLanguage/src/object"
-	"github.com/javanhut/TheCarrionLanguage/src/parser"
-	"github.com/javanhut/TheCarrionLanguage/src/token"
+	"github.com/javanhut/Carrion/src/ast"
+	"github.com/javanhut/Carrion/src/lexer"
+	"github.com/javanhut/Carrion/src/object"
+	"github.com/javanhut/Carrion/src/parser"
+	"github.com/javanhut/Carrion/src/token"
 )
 
 var (

@@ -7,7 +7,7 @@ ENV GOPATH=/go
 ENV PATH=$GOROOT/bin:$GOPATH/bin:$PATH
 
 # (Optional) Add a label to identify the image
-LABEL name="CarrionLanguage"
+LABEL name="Carrion"
 
 # 2) Set our working directory
 WORKDIR /app

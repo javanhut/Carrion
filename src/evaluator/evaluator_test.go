@@ -3,9 +3,9 @@ package evaluator
 import (
 	"testing"
 
-	"github.com/javanhut/TheCarrionLanguage/src/lexer"
-	"github.com/javanhut/TheCarrionLanguage/src/object"
-	"github.com/javanhut/TheCarrionLanguage/src/parser"
+	"github.com/javanhut/Carrion/src/lexer"
+	"github.com/javanhut/Carrion/src/object"
+	"github.com/javanhut/Carrion/src/parser"
 )
 
 func TestEvalIntegerExpression(t *testing.T) {

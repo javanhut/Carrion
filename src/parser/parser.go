@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/javanhut/TheCarrionLanguage/src/ast"
-	"github.com/javanhut/TheCarrionLanguage/src/lexer"
-	"github.com/javanhut/TheCarrionLanguage/src/token"
+	"github.com/javanhut/Carrion/src/ast"
+	"github.com/javanhut/Carrion/src/lexer"
+	"github.com/javanhut/Carrion/src/token"
 )
 
 const (
