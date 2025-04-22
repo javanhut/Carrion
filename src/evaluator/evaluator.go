@@ -134,8 +134,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalMatchStatement(node, env)
 	case *ast.RaiseStatement:
 		return evalRaiseStatement(node, env)
-	case *ast.ArcaneSpellbook:
-		return evalArcaneSpellbook(node, env)
+	case *ast.ArcaneGrimoire:
+		return evalArcaneGrimoire(node, env)
 	case *ast.Identifier:
 		return evalIdentifier(node, env)
 	case *ast.ArrayLiteral:
@@ -171,8 +171,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 			return index
 		}
 		return evalIndexExpression(left, index)
-	case *ast.SpellbookDefinition:
-		return evalSpellbookDefinition(node, env)
+	case *ast.GrimoireDefinition:
+		return evalGrimoireDefinition(node, env)
 	case *ast.AttemptStatement:
 		return evalAttemptStatement(node, env)
 	case *ast.IgnoreStatement:
@@ -203,7 +203,7 @@ func evalFStringLiteral(fslit *ast.FStringLiteral, env *object.Environment) obje
 	return &object.String{Value: sb.String()}
 }
 
-func evalArcaneSpellbook(node *ast.ArcaneSpellbook, env *object.Environment) object.Object {
+func evalArcaneGrimoire(node *ast.ArcaneGrimoire, env *object.Environment) object.Object {
 	methods := make(map[string]*object.Function)
 
 	for _, method := range node.Methods {
@@ -214,15 +214,15 @@ func evalArcaneSpellbook(node *ast.ArcaneSpellbook, env *object.Environment) obj
 		}
 	}
 
-	spellbook := &object.Spellbook{
+	grimoire := &object.Grimoire{
 		Name:     node.Name.Value,
 		Methods:  methods,
 		Env:      env,
 		IsArcane: true,
 	}
 
-	env.Set(node.Name.Value, spellbook)
-	return spellbook
+	env.Set(node.Name.Value, grimoire)
+	return grimoire
 }
 
 func evalRaiseStatement(node *ast.RaiseStatement, env *object.Environment) object.Object {
@@ -240,9 +240,9 @@ func evalRaiseStatement(node *ast.RaiseStatement, env *object.Environment) objec
 			}
 		}
 		return &object.CustomError{
-			Name:      instance.Spellbook.Name,
+			Name:      instance.Grimoire.Name,
 			Message:   message,
-			ErrorType: instance.Spellbook,
+			ErrorType: instance.Grimoire,
 			Instance:  instance,
 		}
 	}
@@ -269,8 +269,8 @@ func evalAttemptStatement(node *ast.AttemptStatement, env *object.Environment) o
 					break
 				}
 
-				if spellbook, ok := condition.(*object.Spellbook); ok {
-					if customErr.ErrorType == spellbook {
+				if grimoire, ok := condition.(*object.Grimoire); ok {
+					if customErr.ErrorType == grimoire {
 						result = Eval(ensnare.Consequence, env)
 						break
 					}
@@ -428,21 +428,21 @@ func getGlobalEnv(env *object.Environment) *object.Environment {
 	return env
 }
 
-func evalSpellbookDefinition(node *ast.SpellbookDefinition, env *object.Environment) object.Object {
+func evalGrimoireDefinition(node *ast.GrimoireDefinition, env *object.Environment) object.Object {
 	methods := map[string]*object.Function{}
 
-	var parentSpellbook *object.Spellbook
+	var parentGrimoire *object.Grimoire
 	if node.Inherits != nil {
 		parentObj, ok := env.Get(node.Inherits.Value)
 		if !ok {
-			return newError("parent spellbook '%s' not found", node.Inherits.Value)
+			return newError("parent grimoire '%s' not found", node.Inherits.Value)
 		}
-		parentSpellbook, ok = parentObj.(*object.Spellbook)
+		parentGrimoire, ok = parentObj.(*object.Grimoire)
 		if !ok {
-			return newError("'%s' is not a spellbook", node.Inherits.Value)
+			return newError("'%s' is not a grimoire", node.Inherits.Value)
 		}
 
-		for name, method := range parentSpellbook.Methods {
+		for name, method := range parentGrimoire.Methods {
 			methods[name] = method
 		}
 	}
@@ -465,12 +465,12 @@ func evalSpellbookDefinition(node *ast.SpellbookDefinition, env *object.Environm
 		methods[method.Name.Value] = fn
 	}
 
-	if parentSpellbook != nil {
-		for name, method := range parentSpellbook.Methods {
+	if parentGrimoire != nil {
+		for name, method := range parentGrimoire.Methods {
 			if method.IsAbstract {
 				if _, ok := methods[name]; !ok {
 					return newError(
-						"spellbook '%s' must implement abstract method '%s'",
+						"grimoire '%s' must implement abstract method '%s'",
 						node.Name.Value, name,
 					)
 				}
@@ -478,17 +478,17 @@ func evalSpellbookDefinition(node *ast.SpellbookDefinition, env *object.Environm
 		}
 	}
 
-	spellbook := &object.Spellbook{
+	grimoire := &object.Grimoire{
 		Name:       node.Name.Value,
 		Methods:    methods,
 		InitMethod: nil,
 		Env:        env,
-		Inherits:   parentSpellbook,
+		Inherits:   parentGrimoire,
 		IsArcane:   false,
 	}
 
 	if node.Token.Type == token.ARCANE {
-		spellbook.IsArcane = true
+		grimoire.IsArcane = true
 	}
 	if node.InitMethod != nil {
 		initFn := &object.Function{
@@ -496,11 +496,11 @@ func evalSpellbookDefinition(node *ast.SpellbookDefinition, env *object.Environm
 			Body:       node.InitMethod.Body,
 			Env:        env,
 		}
-		spellbook.InitMethod = initFn
+		grimoire.InitMethod = initFn
 	}
 
-	env.Set(node.Name.Value, spellbook)
-	return spellbook
+	env.Set(node.Name.Value, grimoire)
+	return grimoire
 }
 
 func evalCallExpression(
@@ -528,13 +528,13 @@ func evalCallExpression(
 		}
 		evaluated := Eval(fn.Method.Body, extendedEnv)
 		return unwrapReturnValue(evaluated)
-	case *object.Spellbook:
+	case *object.Grimoire:
 		if fn.IsArcane {
-			return newError("cannot instantiate arcane spellbook: %s", fn.Name)
+			return newError("cannot instantiate arcane grimoire: %s", fn.Name)
 		}
 		instance := &object.Instance{
-			Spellbook: fn,
-			Env:       object.NewEnclosedEnvironment(fn.Env),
+			Grimoire: fn,
+			Env:      object.NewEnclosedEnvironment(fn.Env),
 		}
 		if fn.InitMethod != nil {
 			globalEnv := getGlobalEnv(fn.Env)
@@ -564,14 +564,14 @@ func evalDotExpression(node *ast.DotExpression, env *object.Environment) object.
 
 		inst, ok := instance.(*object.Instance)
 		if !ok {
-			return newError("'super' must be used in an instance of a spellbook")
+			return newError("'super' must be used in an instance of a grimoire")
 		}
 
-		if inst.Spellbook == nil || inst.Spellbook.Inherits == nil {
+		if inst.Grimoire == nil || inst.Grimoire.Inherits == nil {
 			return newError("no parent class found for 'super'")
 		}
 
-		parentMethod, ok := inst.Spellbook.Inherits.Methods[node.Right.Value]
+		parentMethod, ok := inst.Grimoire.Inherits.Methods[node.Right.Value]
 		if !ok {
 			return newError("no method '%s' found in parent class", node.Right.Value)
 		}
@@ -592,18 +592,18 @@ func evalDotExpression(node *ast.DotExpression, env *object.Environment) object.
 		return val
 	}
 
-	method, ok := instance.Spellbook.Methods[fieldOrMethodName]
+	method, ok := instance.Grimoire.Methods[fieldOrMethodName]
 	if !ok {
 		return newError("undefined property or method: %s", fieldOrMethodName)
 	}
 
-	if method.IsPrivate && !sameClass(env, instance.Spellbook) {
+	if method.IsPrivate && !sameClass(env, instance.Grimoire) {
 		return newError(
 			"private method '%s' not accessible outside its defining class",
 			fieldOrMethodName,
 		)
 	}
-	if method.IsProtected && !sameOrSubclass(env, instance.Spellbook) {
+	if method.IsProtected && !sameOrSubclass(env, instance.Grimoire) {
 		return newError("protected method '%s' not accessible here", fieldOrMethodName)
 	}
 
@@ -613,7 +613,7 @@ func evalDotExpression(node *ast.DotExpression, env *object.Environment) object.
 	}
 }
 
-func sameClass(env *object.Environment, target *object.Spellbook) bool {
+func sameClass(env *object.Environment, target *object.Grimoire) bool {
 	callerSelf, ok := env.Get("self")
 	if !ok {
 		return false
@@ -622,10 +622,10 @@ func sameClass(env *object.Environment, target *object.Spellbook) bool {
 	if !ok {
 		return false
 	}
-	return callerInst.Spellbook == target
+	return callerInst.Grimoire == target
 }
 
-func sameOrSubclass(env *object.Environment, target *object.Spellbook) bool {
+func sameOrSubclass(env *object.Environment, target *object.Grimoire) bool {
 	callerSelf, ok := env.Get("self")
 	if !ok {
 		return false
@@ -635,12 +635,12 @@ func sameOrSubclass(env *object.Environment, target *object.Spellbook) bool {
 		return false
 	}
 
-	sb := callerInst.Spellbook
-	for sb != nil {
-		if sb == target {
+	grim := callerInst.Grimoire
+	for grim != nil {
+		if grim == target {
 			return true
 		}
-		sb = sb.Inherits
+		grim = grim.Inherits
 	}
 	return false
 }
@@ -1397,7 +1397,7 @@ func evalImportStatement(node *ast.ImportStatement, env *object.Environment) obj
 	} else {
 		for _, name := range importEnv.GetNames() {
 			val, _ := importEnv.Get(name)
-			if val.Type() == object.SPELLBOOK_OBJ {
+			if val.Type() == object.GRIMOIRE_OBJ {
 				env.Set(name, val)
 			}
 		}
