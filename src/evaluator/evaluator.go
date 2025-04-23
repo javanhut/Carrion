@@ -879,6 +879,8 @@ func evalInfixExpression(
 		return evalBooleanInfixExpression(operator, left, right)
 	case left.Type() == object.STRING_OBJ && right.Type() == object.STRING_OBJ:
 		return evalStringInfixExpression(operator, left, right)
+	case left.Type() == object.ARRAY_OBJ && right.Type() == object.ARRAY_OBJ:
+		return evalArrayInfixExpression(operator, left, right)
 	case left == object.NONE && right == object.NONE:
 		return nativeBoolToBooleanObject(operator == "==")
 	case left == object.NONE || right == object.NONE:
@@ -938,6 +940,25 @@ func evalStringInfixExpression(
 	leftVal := left.(*object.String).Value
 	rightVal := right.(*object.String).Value
 	return &object.String{Value: leftVal + rightVal}
+}
+
+func evalArrayInfixExpression(
+	operator string,
+	left, right object.Object,
+) object.Object {
+	if operator != "+" {
+		return newError("unknown operator: %s %s %s",
+			left.Type(), operator, right.Type())
+	}
+	leftVal := left.(*object.Array)
+	rightVal := right.(*object.Array)
+	
+	// Create a new array with the combined elements
+	newElements := make([]object.Object, len(leftVal.Elements)+len(rightVal.Elements))
+	copy(newElements, leftVal.Elements)
+	copy(newElements[len(leftVal.Elements):], rightVal.Elements)
+	
+	return &object.Array{Elements: newElements}
 }
 
 func evalBooleanInfixExpression(operator string, left, right object.Object) object.Object {
