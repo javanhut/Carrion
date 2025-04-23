@@ -41,3 +41,28 @@ func (e *Environment) GetNames() []string {
 func (e *Environment) GetOuter() *Environment {
 	return e.outer
 }
+
+// GetFunctionName tries to determine the current function name
+// Returns empty string if not in a function/method
+func (e *Environment) GetFunctionName() string {
+	// Check if we're in a method
+	if self, ok := e.Get("self"); ok {
+		if instance, ok := self.(*Instance); ok {
+			return instance.Grimoire.Name + " method"
+		}
+	}
+	
+	// Check for function name
+	if fnName, ok := e.Get("__function_name"); ok {
+		if str, ok := fnName.(*String); ok {
+			return str.Value
+		}
+	}
+	
+	// Check outer environments
+	if e.outer != nil {
+		return e.outer.GetFunctionName()
+	}
+	
+	return ""
+}

@@ -21,6 +21,7 @@ type Expression interface {
 
 type Program struct {
 	Statements []Statement
+	FileName   string // Store the source file name
 }
 
 func (p *Program) TokenLiteral() string {

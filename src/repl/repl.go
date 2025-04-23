@@ -204,7 +204,7 @@ func Start(in io.Reader, out io.Writer, env *object.Environment) {
 }
 
 func tryParseAndEval(input string, out io.Writer, env *object.Environment) (object.Object, bool) {
-	l := lexer.New(input)
+	l := lexer.New(input, "<repl>")  // Use "<repl>" as the filename for REPL input
 	p := parser.New(l)
 	program := p.ParseProgram()
 

@@ -85,7 +85,7 @@ func (p *Parser) isInsideGrimoire() bool {
 	return p.contextStack[len(p.contextStack)-1] == "grim"
 }
 
-func New(l *lexer.Lexer) *Parser {
+func New(l *lexer.Lexer, fileName ...string) *Parser {
 	p := &Parser{l: l, errors: []string{}}
 	p.nextToken()
 	p.nextToken()
@@ -883,6 +883,11 @@ func (p *Parser) nextToken() {
 func (p *Parser) ParseProgram() *ast.Program {
 	program := &ast.Program{}
 	program.Statements = []ast.Statement{}
+	
+	// Set the filename from the lexer's token if available
+	if p.currToken.Position.File != "" {
+		program.FileName = p.currToken.Position.File
+	}
 
 	for p.currToken.Type != token.EOF {
 

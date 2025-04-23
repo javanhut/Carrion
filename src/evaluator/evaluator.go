@@ -13,6 +13,62 @@ import (
 	"github.com/javanhut/Carrion/src/token"
 )
 
+// EvalContext tracks call stack and other context information during evaluation
+type EvalContext struct {
+	callStack []CallFrame
+	fileName  string
+}
+
+// CallFrame represents a function call in the call stack
+type CallFrame struct {
+	funcName string
+	position token.Position
+}
+
+// NewEvalContext creates a new evaluation context
+func NewEvalContext(fileName string) *EvalContext {
+	return &EvalContext{
+		callStack: []CallFrame{},
+		fileName:  fileName,
+	}
+}
+
+// PushCallFrame adds a new frame to the call stack
+func (ctx *EvalContext) PushCallFrame(funcName string, position token.Position) {
+	position.File = ctx.fileName // Ensure the filename is set
+	ctx.callStack = append(ctx.callStack, CallFrame{
+		funcName: funcName,
+		position: position,
+	})
+}
+
+// PopCallFrame removes the most recent frame from the call stack
+func (ctx *EvalContext) PopCallFrame() {
+	if len(ctx.callStack) > 0 {
+		ctx.callStack = ctx.callStack[:len(ctx.callStack)-1]
+	}
+}
+
+// GetCallStack returns the current call stack
+func (ctx *EvalContext) GetCallStack() []object.StackTraceEntry {
+	entries := make([]object.StackTraceEntry, len(ctx.callStack))
+	for i, frame := range ctx.callStack {
+		entries[i] = object.StackTraceEntry{
+			Function: frame.funcName,
+			Position: frame.position,
+		}
+	}
+	return entries
+}
+
+// CurrentPosition returns the position of the current execution point
+func (ctx *EvalContext) CurrentPosition() token.Position {
+	if len(ctx.callStack) > 0 {
+		return ctx.callStack[len(ctx.callStack)-1].position
+	}
+	return token.Position{File: ctx.fileName}
+}
+
 var (
 	NONE          = &object.None{Value: "None"}
 	TRUE          = &object.Boolean{Value: true}
@@ -264,27 +320,49 @@ func evalRaiseStatement(node *ast.RaiseStatement, env *object.Environment) objec
 		return errObj
 	}
 
-	if instance, ok := errObj.(*object.Instance); ok {
+	// Get position information from the token
+	position := node.Token.Position
+	
+	// Get function name for stack trace from environment
+	functionName := env.GetFunctionName()
+	if functionName == "" {
+		// Default to main for top-level code
+		functionName = "main"
+	}
 
+	if instance, ok := errObj.(*object.Instance); ok {
 		message := ""
 		if msg, ok := instance.Env.Get("message"); ok {
 			if msgStr, ok := msg.(*object.String); ok {
 				message = msgStr.Value
 			}
 		}
-		return &object.CustomError{
+		
+		customErr := &object.CustomError{
 			Name:      instance.Grimoire.Name,
 			Message:   message,
 			ErrorType: instance.Grimoire,
 			Instance:  instance,
+			Position:  position,
+			StackTrace: []object.StackTraceEntry{},
 		}
+		
+		// Add current position to stack trace with function context
+		customErr.AddStackEntry(position, functionName)
+		
+		return customErr
 	}
 
 	if str, ok := errObj.(*object.String); ok {
-		return object.NewCustomError("Error", str.Value)
+		customErr := object.NewCustomError("Error", str.Value, position)
+		customErr.AddStackEntry(position, functionName)
+		return customErr
 	}
 
-	return newError("cannot raise non-error object: %s", errObj.Type())
+	err := newError("cannot raise non-error object: %s", errObj.Type())
+	err.Position = position
+	err.AddStackEntry(position, functionName)
+	return err
 }
 
 func evalAttemptStatement(node *ast.AttemptStatement, env *object.Environment) object.Object {
@@ -549,12 +627,14 @@ func evalCallExpression(
 	switch fn := fn.(type) {
 	case *object.Function:
 		globalEnv := getGlobalEnv(fn.Env)
-		extendedEnv := extendFunctionEnv(fn, args, globalEnv)
+		functionName := "function"
+		extendedEnv := extendFunctionEnv(fn, args, globalEnv, functionName)
 		evaluated := Eval(fn.Body, extendedEnv)
 		return unwrapReturnValue(evaluated)
 	case *object.BoundMethod:
 		globalEnv := getGlobalEnv(fn.Method.Env)
-		extendedEnv := extendFunctionEnv(fn.Method, args, globalEnv)
+		functionName := fn.Instance.Grimoire.Name + "." + "method"
+		extendedEnv := extendFunctionEnv(fn.Method, args, globalEnv, functionName)
 		extendedEnv.Set("self", fn.Instance)
 		if fn.Method.IsAbstract {
 			return newError("Cannot call abstract method")
@@ -571,7 +651,8 @@ func evalCallExpression(
 		}
 		if fn.InitMethod != nil {
 			globalEnv := getGlobalEnv(fn.Env)
-			extendedEnv := extendFunctionEnv(fn.InitMethod, args, globalEnv)
+			functionName := fn.Name + ".init"
+			extendedEnv := extendFunctionEnv(fn.InitMethod, args, globalEnv, functionName)
 			extendedEnv.Set("self", instance)
 			Eval(fn.InitMethod.Body, extendedEnv)
 		}
@@ -831,8 +912,12 @@ func extendFunctionEnv(
 	fn *object.Function,
 	args []object.Object,
 	global *object.Environment,
+	functionName string,
 ) *object.Environment {
 	env := object.NewEnclosedEnvironment(fn.Env)
+	
+	// Set function name for stack traces
+	env.Set("__function_name", &object.String{Value: functionName})
 
 	for i, param := range fn.Parameters {
 		if i < len(args) {
@@ -845,7 +930,6 @@ func extendFunctionEnv(
 					env.Set(param.Name.Value, newError("identifier not found: "+ident.Value))
 				}
 			} else {
-
 				defaultVal := Eval(param.DefaultValue, fn.Env)
 				env.Set(param.Name.Value, defaultVal)
 			}
@@ -1336,7 +1420,7 @@ func evalIfExpression(ie *ast.IfStatement, env *object.Environment) object.Objec
 }
 
 func newError(format string, a ...interface{}) *object.Error {
-	return &object.Error{Message: fmt.Sprintf(format, a...)}
+	return object.NewError(fmt.Sprintf(format, a...))
 }
 
 func isError(obj object.Object) bool {
@@ -1490,7 +1574,8 @@ func evalImportStatement(node *ast.ImportStatement, env *object.Environment) obj
 		return newError("could not import file: %s", err)
 	}
 
-	l := lexer.New(string(fileContent))
+	// Create lexer and parser with filename for better error reporting
+	l := lexer.New(string(fileContent), filePath)
 	p := parser.New(l)
 	program := p.ParseProgram()
 
