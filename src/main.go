@@ -67,7 +67,7 @@ func main() {
 		result := evaluator.Eval(program, env)
 		
 		// Check for errors
-		if result != nil && result.Type() == object.ERROR_OBJ {
+		if result != nil && result.Type() == object.ERROR_OBJ || result.Type() == object.CUSTOM_ERROR_OBJ {
 			fmt.Fprintf(os.Stderr, "%s\n", result.Inspect())
 			os.Exit(1)
 		}
