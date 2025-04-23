@@ -14,16 +14,23 @@ type Lexer struct {
 	indentStack []int
 	currLine    string
 	finished    bool
+	fileName    string
 
 	indentResolved bool
 }
 
-func New(input string) *Lexer {
+func New(input string, fileName ...string) *Lexer {
 	rawLines := strings.Split(input, "\n")
+	
+	filename := ""
+	if len(fileName) > 0 {
+		filename = fileName[0]
+	}
 
 	l := &Lexer{
 		lines:       rawLines,
 		indentStack: []int{0},
+		fileName:    filename,
 	}
 	if len(l.lines) == 0 {
 		l.finished = true
@@ -35,7 +42,15 @@ func New(input string) *Lexer {
 
 func (l *Lexer) NextToken() token.Token {
 	if l.finished {
-		return token.Token{Type: token.EOF, Literal: ""}
+		return token.Token{
+			Type: token.EOF, 
+			Literal: "", 
+			Position: token.Position{
+				Line: l.lineIndex + 1, 
+				Column: l.charIndex + 1,
+				File: l.fileName,
+			},
+		}
 	}
 
 	if l.charIndex == 0 && !l.indentResolved {
@@ -45,7 +60,15 @@ func (l *Lexer) NextToken() token.Token {
 	}
 
 	if l.charIndex >= len(l.currLine) {
-		tok := token.Token{Type: token.NEWLINE, Literal: "\\n"}
+		tok := token.Token{
+			Type: token.NEWLINE, 
+			Literal: "\\n",
+			Position: token.Position{
+				Line: l.lineIndex + 1, 
+				Column: l.charIndex + 1,
+				File: l.fileName,
+			},
+		}
 		l.advanceLine()
 		return tok
 	}
@@ -66,63 +89,119 @@ func (l *Lexer) NextToken() token.Token {
 		return l.readIdentifier()
 	}
 
+	position := token.Position{
+		Line:   l.lineIndex + 1,
+		Column: l.charIndex + 1,
+		File:   l.fileName,
+	}
+
 	switch ch {
 	case '=':
 		if l.peekChar() == '=' {
 			l.charIndex += 2
-			return token.Token{Type: token.EQ, Literal: "=="}
+			return token.Token{
+				Type:     token.EQ,
+				Literal:  "==",
+				Position: position,
+			}
 		}
 		l.charIndex++
-		return newToken(token.ASSIGN, '=')
+		return token.Token{
+			Type:     token.ASSIGN,
+			Literal:  "=",
+			Position: position,
+		}
 
 	case '+':
 		nxt := l.peekChar()
 		if nxt == '+' {
 			l.charIndex += 2
-			return token.Token{Type: token.PLUS_INCREMENT, Literal: "++"}
+			return token.Token{
+				Type:     token.PLUS_INCREMENT,
+				Literal:  "++",
+				Position: position,
+			}
 		} else if nxt == '=' {
 			l.charIndex += 2
-			return token.Token{Type: token.INCREMENT, Literal: "+="}
+			return token.Token{
+				Type:     token.INCREMENT,
+				Literal:  "+=",
+				Position: position,
+			}
 		}
 		l.charIndex++
-		return newToken(token.PLUS, '+')
+		return token.Token{
+			Type:     token.PLUS,
+			Literal:  "+",
+			Position: position,
+		}
 
 	case '-':
 		nxt := l.peekChar()
 		if nxt == '-' {
 			l.charIndex += 2
-			return token.Token{Type: token.MINUS_DECREMENT, Literal: "--"}
+			return token.Token{
+				Type:     token.MINUS_DECREMENT,
+				Literal:  "--",
+				Position: position,
+			}
 		} else if nxt == '=' {
 			l.charIndex += 2
-			return token.Token{Type: token.DECREMENT, Literal: "-="}
+			return token.Token{
+				Type:     token.DECREMENT,
+				Literal:  "-=",
+				Position: position,
+			}
 		}
 		l.charIndex++
-		return newToken(token.MINUS, '-')
+		return token.Token{
+			Type:     token.MINUS,
+			Literal:  "-",
+			Position: position,
+		}
 
 	case '*':
 		if l.peekChar() == '=' {
 			l.charIndex += 2
-			return token.Token{Type: token.MULTASSGN, Literal: "*="}
+			return token.Token{
+				Type:     token.MULTASSGN,
+				Literal:  "*=",
+				Position: position,
+			}
 		} else if l.peekChar() == '*' {
 			l.charIndex += 2
-			return token.Token{Type: token.EXPONENT, Literal: "**"}
+			return token.Token{
+				Type:     token.EXPONENT,
+				Literal:  "**",
+				Position: position,
+			}
 		}
 		l.charIndex++
-		return newToken(token.ASTERISK, '*')
+		return token.Token{
+			Type:     token.ASTERISK,
+			Literal:  "*",
+			Position: position,
+		}
 	case '_':
-
 		if l.peekCharIsLetterOrDigitOrUnderscore() {
 			return l.readIdentifier()
 		} else {
-
 			l.charIndex++
-			return token.Token{Type: token.UNDERSCORE, Literal: "_"}
+			return token.Token{
+				Type:     token.UNDERSCORE,
+				Literal:  "_",
+				Position: position,
+			}
 		}
 	case '/':
 		next := l.peekChar()
 		if next == '=' {
 			l.charIndex += 2
-			return token.Token{Type: token.DIVASSGN, Literal: "/="}
+			return token.Token{
+				Type:     token.DIVASSGN,
+				Literal:  "/=",
+				Position: position,
+			}
 		} else if next == '/' {
 			l.skipLineComment()
 			return l.NextToken()
@@ -131,107 +210,210 @@ func (l *Lexer) NextToken() token.Token {
 			return l.NextToken()
 		}
 		l.charIndex++
-		return newToken(token.SLASH, '/')
+		return token.Token{
+			Type:     token.SLASH,
+			Literal:  "/",
+			Position: position,
+		}
 
 	case '%':
 		l.charIndex++
-		return newToken(token.MOD, '%')
+		return token.Token{
+			Type:     token.MOD,
+			Literal:  "%",
+			Position: position,
+		}
 
 	case '<':
 		if l.peekChar() == '<' { // check for left-shift
 			l.charIndex += 2
-			return token.Token{Type: token.LSHIFT, Literal: "<<"}
+			return token.Token{
+				Type:     token.LSHIFT,
+				Literal:  "<<",
+				Position: position,
+			}
 		} else if l.peekChar() == '=' { // less than or equal
 			l.charIndex += 2
-			return token.Token{Type: token.LE, Literal: "<="}
+			return token.Token{
+				Type:     token.LE,
+				Literal:  "<=",
+				Position: position,
+			}
 		}
 		l.charIndex++
-		return newToken(token.LT, '<')
+		return token.Token{
+			Type:     token.LT,
+			Literal:  "<",
+			Position: position,
+		}
 
 	case '>':
 		if l.peekChar() == '>' { // check for right-shift
 			l.charIndex += 2
-			return token.Token{Type: token.RSHIFT, Literal: ">>"}
+			return token.Token{
+				Type:     token.RSHIFT,
+				Literal:  ">>",
+				Position: position,
+			}
 		} else if l.peekChar() == '=' { // greater than or equal
 			l.charIndex += 2
-			return token.Token{Type: token.GE, Literal: ">="}
+			return token.Token{
+				Type:     token.GE,
+				Literal:  ">=",
+				Position: position,
+			}
 		}
 		l.charIndex++
-		return newToken(token.GT, '>')
+		return token.Token{
+			Type:     token.GT,
+			Literal:  ">",
+			Position: position,
+		}
 
 	case '^':
 		l.charIndex++
-		return newToken(token.XOR, '^')
+		return token.Token{
+			Type:     token.XOR,
+			Literal:  "^",
+			Position: position,
+		}
 
 	case '~':
 		l.charIndex++
-		return newToken(token.TILDE, '~')
+		return token.Token{
+			Type:     token.TILDE,
+			Literal:  "~",
+			Position: position,
+		}
 
 	case '!':
 		if l.peekChar() == '=' {
 			l.charIndex += 2
-			return token.Token{Type: token.NOT_EQ, Literal: "!="}
+			return token.Token{
+				Type:     token.NOT_EQ,
+				Literal:  "!=",
+				Position: position,
+			}
 		}
 		l.charIndex++
-		return newToken(token.BANG, '!')
+		return token.Token{
+			Type:     token.BANG,
+			Literal:  "!",
+			Position: position,
+		}
 
 	case ',':
 		l.charIndex++
-		return newToken(token.COMMA, ',')
+		return token.Token{
+			Type:     token.COMMA,
+			Literal:  ",",
+			Position: position,
+		}
 
 	case ':':
 		l.charIndex++
-		return newToken(token.COLON, ':')
+		return token.Token{
+			Type:     token.COLON,
+			Literal:  ":",
+			Position: position,
+		}
 
 	case ';':
 		l.charIndex++
-		return newToken(token.SEMICOLON, ';')
+		return token.Token{
+			Type:     token.SEMICOLON,
+			Literal:  ";",
+			Position: position,
+		}
 	case '(':
 		l.charIndex++
-		return newToken(token.LPAREN, '(')
+		return token.Token{
+			Type:     token.LPAREN,
+			Literal:  "(",
+			Position: position,
+		}
 
 	case ')':
 		l.charIndex++
-		return newToken(token.RPAREN, ')')
+		return token.Token{
+			Type:     token.RPAREN,
+			Literal:  ")",
+			Position: position,
+		}
 
 	case '[':
 		l.charIndex++
-		return newToken(token.LBRACK, '[')
+		return token.Token{
+			Type:     token.LBRACK,
+			Literal:  "[",
+			Position: position,
+		}
 
 	case ']':
 		l.charIndex++
-		return newToken(token.RBRACK, ']')
+		return token.Token{
+			Type:     token.RBRACK,
+			Literal:  "]",
+			Position: position,
+		}
 
 	case '{':
 		l.charIndex++
-		return newToken(token.LBRACE, '{')
+		return token.Token{
+			Type:     token.LBRACE,
+			Literal:  "{",
+			Position: position,
+		}
 
 	case '}':
 		l.charIndex++
-		return newToken(token.RBRACE, '}')
+		return token.Token{
+			Type:     token.RBRACE,
+			Literal:  "}",
+			Position: position,
+		}
 
 	case '.':
 		l.charIndex++
-		return newToken(token.DOT, '.')
+		return token.Token{
+			Type:     token.DOT,
+			Literal:  ".",
+			Position: position,
+		}
 
 	case '#':
 		l.charIndex++
-		return newToken(token.HASH, '#')
+		return token.Token{
+			Type:     token.HASH,
+			Literal:  "#",
+			Position: position,
+		}
 
 	case '&':
 		l.charIndex++
-		return newToken(token.AMPERSAND, '&')
+		return token.Token{
+			Type:     token.AMPERSAND,
+			Literal:  "&",
+			Position: position,
+		}
 
 	case '|':
 		l.charIndex++
-		return newToken(token.PIPE, '|')
+		return token.Token{
+			Type:     token.PIPE,
+			Literal:  "|",
+			Position: position,
+		}
 
 	case '@':
 		l.charIndex++
-		return newToken(token.AT, '@')
+		return token.Token{
+			Type:     token.AT,
+			Literal:  "@",
+			Position: position,
+		}
 
 	case '"':
-
 		return l.readString()
 	case '\'':
 		return l.readString()
@@ -242,16 +424,29 @@ func (l *Lexer) NextToken() token.Token {
 		} else if isDigit(ch) {
 			return l.readNumber()
 		} else {
-
 			l.charIndex++
-			return token.Token{Type: token.ILLEGAL, Literal: string(ch)}
+			return token.Token{
+				Type:     token.ILLEGAL,
+				Literal:  string(ch),
+				Position: position,
+			}
 		}
 	}
 }
 
 func (l *Lexer) readFString() token.Token {
+	position := token.Position{
+		Line:   l.lineIndex + 1,
+		Column: l.charIndex,
+		File:   l.fileName,
+	}
+
 	if l.charIndex >= len(l.currLine) {
-		return token.Token{Type: token.ILLEGAL, Literal: "unexpected end of line after f"}
+		return token.Token{
+			Type:     token.ILLEGAL,
+			Literal:  "unexpected end of line after f",
+			Position: position,
+		}
 	}
 	openingQuote := l.currLine[l.charIndex]
 	l.charIndex++
@@ -268,7 +463,6 @@ func (l *Lexer) readFString() token.Token {
 
 	if isTriple {
 		for {
-
 			if l.charIndex >= len(l.currLine) {
 				sb.WriteByte('\n')
 				l.advanceLine()
@@ -349,8 +543,9 @@ func (l *Lexer) readFString() token.Token {
 	}
 
 	return token.Token{
-		Type:    token.FSTRING,
-		Literal: sb.String(),
+		Type:     token.FSTRING,
+		Literal:  sb.String(),
+		Position: position,
 	}
 }
 
@@ -371,7 +566,6 @@ func (l *Lexer) skipBlockComment() {
 	l.charIndex += 2
 
 	for {
-
 		if l.charIndex >= len(l.currLine) {
 			l.advanceLine()
 			if l.finished {
@@ -390,26 +584,39 @@ func (l *Lexer) skipBlockComment() {
 }
 
 func (l *Lexer) handleIndentChange(newIndent int) token.Token {
+	position := token.Position{
+		Line:   l.lineIndex + 1,
+		Column: l.charIndex + 1,
+		File:   l.fileName,
+	}
+	
 	currentIndent := l.indentStack[len(l.indentStack)-1]
 
 	if newIndent == currentIndent {
-
 		l.charIndex = newIndent
-
-		return token.Token{Type: token.NEWLINE, Literal: ""}
-
+		return token.Token{
+			Type:     token.NEWLINE,
+			Literal:  "",
+			Position: position,
+		}
 	}
 
 	if newIndent > currentIndent {
-
 		l.indentStack = append(l.indentStack, newIndent)
 		l.charIndex = newIndent
-		return token.Token{Type: token.INDENT, Literal: ""}
+		return token.Token{
+			Type:     token.INDENT,
+			Literal:  "",
+			Position: position,
+		}
 	}
 
 	l.indentStack = l.indentStack[:len(l.indentStack)-1]
-
-	return token.Token{Type: token.DEDENT, Literal: ""}
+	return token.Token{
+		Type:     token.DEDENT,
+		Literal:  "",
+		Position: position,
+	}
 }
 
 func (l *Lexer) advanceLine() {
@@ -446,8 +653,13 @@ func measureIndent(line string) int {
 }
 
 func (l *Lexer) readString() token.Token {
+	position := token.Position{
+		Line:   l.lineIndex + 1,
+		Column: l.charIndex + 1,
+		File:   l.fileName,
+	}
+	
 	quoteChar := l.currLine[l.charIndex]
-
 	l.charIndex++
 
 	isTriple := false
@@ -455,16 +667,13 @@ func (l *Lexer) readString() token.Token {
 		l.currLine[l.charIndex] == quoteChar &&
 		l.currLine[l.charIndex+1] == quoteChar {
 		isTriple = true
-
 		l.charIndex += 2
 	}
 
 	var sb strings.Builder
 
 	if isTriple {
-
 		for {
-
 			if l.charIndex >= len(l.currLine) {
 				sb.WriteByte('\n')
 				l.advanceLine()
@@ -507,11 +716,11 @@ func (l *Lexer) readString() token.Token {
 			l.charIndex++
 		}
 		return token.Token{
-			Type:    token.DOCSTRING,
-			Literal: sb.String(),
+			Type:     token.DOCSTRING,
+			Literal:  sb.String(),
+			Position: position,
 		}
 	} else {
-
 		for {
 			if l.charIndex >= len(l.currLine) {
 				break
@@ -546,20 +755,31 @@ func (l *Lexer) readString() token.Token {
 			l.charIndex++
 		}
 		return token.Token{
-			Type:    token.STRING,
-			Literal: sb.String(),
+			Type:     token.STRING,
+			Literal:  sb.String(),
+			Position: position,
 		}
 	}
 }
 
 func (l *Lexer) readIdentifier() token.Token {
+	position := token.Position{
+		Line:   l.lineIndex + 1,
+		Column: l.charIndex + 1,
+		File:   l.fileName,
+	}
+	
 	start := l.charIndex
 	for l.charIndex < len(l.currLine) && isLetterOrDigit(l.currLine[l.charIndex]) {
 		l.charIndex++
 	}
 	literal := l.currLine[start:l.charIndex]
 	tokType := token.LookupIdent(literal)
-	return token.Token{Type: tokType, Literal: literal}
+	return token.Token{
+		Type:     tokType,
+		Literal:  literal,
+		Position: position,
+	}
 }
 
 func isLetterOrDigit(ch byte) bool {
@@ -567,6 +787,12 @@ func isLetterOrDigit(ch byte) bool {
 }
 
 func (l *Lexer) readNumber() token.Token {
+	position := token.Position{
+		Line:   l.lineIndex + 1,
+		Column: l.charIndex + 1,
+		File:   l.fileName,
+	}
+	
 	start := l.charIndex
 	isFloat := false
 	for l.charIndex < len(l.currLine) {
@@ -583,13 +809,17 @@ func (l *Lexer) readNumber() token.Token {
 	}
 	literal := l.currLine[start:l.charIndex]
 	if isFloat {
-		return token.Token{Type: token.FLOAT, Literal: literal}
+		return token.Token{
+			Type:     token.FLOAT,
+			Literal:  literal,
+			Position: position,
+		}
 	}
-	return token.Token{Type: token.INT, Literal: literal}
-}
-
-func newToken(tt token.TokenType, ch byte) token.Token {
-	return token.Token{Type: tt, Literal: string(ch)}
+	return token.Token{
+		Type:     token.INT,
+		Literal:  literal,
+		Position: position,
+	}
 }
 
 func isLetter(ch byte) bool {

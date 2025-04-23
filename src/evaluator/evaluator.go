@@ -13,6 +13,62 @@ import (
 	"github.com/javanhut/Carrion/src/token"
 )
 
+// EvalContext tracks call stack and other context information during evaluation
+type EvalContext struct {
+	callStack []CallFrame
+	fileName  string
+}
+
+// CallFrame represents a function call in the call stack
+type CallFrame struct {
+	funcName string
+	position token.Position
+}
+
+// NewEvalContext creates a new evaluation context
+func NewEvalContext(fileName string) *EvalContext {
+	return &EvalContext{
+		callStack: []CallFrame{},
+		fileName:  fileName,
+	}
+}
+
+// PushCallFrame adds a new frame to the call stack
+func (ctx *EvalContext) PushCallFrame(funcName string, position token.Position) {
+	position.File = ctx.fileName // Ensure the filename is set
+	ctx.callStack = append(ctx.callStack, CallFrame{
+		funcName: funcName,
+		position: position,
+	})
+}
+
+// PopCallFrame removes the most recent frame from the call stack
+func (ctx *EvalContext) PopCallFrame() {
+	if len(ctx.callStack) > 0 {
+		ctx.callStack = ctx.callStack[:len(ctx.callStack)-1]
+	}
+}
+
+// GetCallStack returns the current call stack
+func (ctx *EvalContext) GetCallStack() []object.StackTraceEntry {
+	entries := make([]object.StackTraceEntry, len(ctx.callStack))
+	for i, frame := range ctx.callStack {
+		entries[i] = object.StackTraceEntry{
+			Function: frame.funcName,
+			Position: frame.position,
+		}
+	}
+	return entries
+}
+
+// CurrentPosition returns the position of the current execution point
+func (ctx *EvalContext) CurrentPosition() token.Position {
+	if len(ctx.callStack) > 0 {
+		return ctx.callStack[len(ctx.callStack)-1].position
+	}
+	return token.Position{File: ctx.fileName}
+}
+
 var (
 	NONE          = &object.None{Value: "None"}
 	TRUE          = &object.Boolean{Value: true}
@@ -166,11 +222,44 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		if isError(left) {
 			return left
 		}
-		index := Eval(node.Index, env)
-		if isError(index) {
-			return index
+		
+		// Check if the index is a RangeExpression for array slicing
+		if rangeExp, ok := node.Index.(*ast.RangeExpression); ok {
+			// Create Range object
+			rangeObj := &object.Range{}
+			
+			// Evaluate start index if present
+			if rangeExp.Start != nil {
+				startIdx := Eval(rangeExp.Start, env)
+				if isError(startIdx) {
+					return startIdx
+				}
+				rangeObj.Start = startIdx
+			} else {
+				rangeObj.Start = NONE
+			}
+			
+			// Evaluate end index if present
+			if rangeExp.End != nil {
+				endIdx := Eval(rangeExp.End, env)
+				if isError(endIdx) {
+					return endIdx
+				}
+				rangeObj.End = endIdx
+			} else {
+				rangeObj.End = NONE
+			}
+			
+			// Evaluate array slicing with the range object
+			return evalIndexExpression(left, rangeObj)
+		} else {
+			// Regular index evaluation
+			index := Eval(node.Index, env)
+			if isError(index) {
+				return index
+			}
+			return evalIndexExpression(left, index)
 		}
-		return evalIndexExpression(left, index)
 	case *ast.GrimoireDefinition:
 		return evalGrimoireDefinition(node, env)
 	case *ast.AttemptStatement:
@@ -231,27 +320,49 @@ func evalRaiseStatement(node *ast.RaiseStatement, env *object.Environment) objec
 		return errObj
 	}
 
-	if instance, ok := errObj.(*object.Instance); ok {
+	// Get position information from the token
+	position := node.Token.Position
+	
+	// Get function name for stack trace from environment
+	functionName := env.GetFunctionName()
+	if functionName == "" {
+		// Default to main for top-level code
+		functionName = "main"
+	}
 
+	if instance, ok := errObj.(*object.Instance); ok {
 		message := ""
 		if msg, ok := instance.Env.Get("message"); ok {
 			if msgStr, ok := msg.(*object.String); ok {
 				message = msgStr.Value
 			}
 		}
-		return &object.CustomError{
+		
+		customErr := &object.CustomError{
 			Name:      instance.Grimoire.Name,
 			Message:   message,
 			ErrorType: instance.Grimoire,
 			Instance:  instance,
+			Position:  position,
+			StackTrace: []object.StackTraceEntry{},
 		}
+		
+		// Add current position to stack trace with function context
+		customErr.AddStackEntry(position, functionName)
+		
+		return customErr
 	}
 
 	if str, ok := errObj.(*object.String); ok {
-		return object.NewCustomError("Error", str.Value)
+		customErr := object.NewCustomError("Error", str.Value, position)
+		customErr.AddStackEntry(position, functionName)
+		return customErr
 	}
 
-	return newError("cannot raise non-error object: %s", errObj.Type())
+	err := newError("cannot raise non-error object: %s", errObj.Type())
+	err.Position = position
+	err.AddStackEntry(position, functionName)
+	return err
 }
 
 func evalAttemptStatement(node *ast.AttemptStatement, env *object.Environment) object.Object {
@@ -516,12 +627,14 @@ func evalCallExpression(
 	switch fn := fn.(type) {
 	case *object.Function:
 		globalEnv := getGlobalEnv(fn.Env)
-		extendedEnv := extendFunctionEnv(fn, args, globalEnv)
+		functionName := "function"
+		extendedEnv := extendFunctionEnv(fn, args, globalEnv, functionName)
 		evaluated := Eval(fn.Body, extendedEnv)
 		return unwrapReturnValue(evaluated)
 	case *object.BoundMethod:
 		globalEnv := getGlobalEnv(fn.Method.Env)
-		extendedEnv := extendFunctionEnv(fn.Method, args, globalEnv)
+		functionName := fn.Instance.Grimoire.Name + "." + "method"
+		extendedEnv := extendFunctionEnv(fn.Method, args, globalEnv, functionName)
 		extendedEnv.Set("self", fn.Instance)
 		if fn.Method.IsAbstract {
 			return newError("Cannot call abstract method")
@@ -538,7 +651,8 @@ func evalCallExpression(
 		}
 		if fn.InitMethod != nil {
 			globalEnv := getGlobalEnv(fn.Env)
-			extendedEnv := extendFunctionEnv(fn.InitMethod, args, globalEnv)
+			functionName := fn.Name + ".init"
+			extendedEnv := extendFunctionEnv(fn.InitMethod, args, globalEnv, functionName)
 			extendedEnv.Set("self", instance)
 			Eval(fn.InitMethod.Body, extendedEnv)
 		}
@@ -682,8 +796,14 @@ func evalIndexExpression(left, index object.Object) object.Object {
 	switch {
 	case left.Type() == object.TUPLE_OBJ:
 		return evalTupleIndexExpression(left, index)
-	case left.Type() == object.ARRAY_OBJ && index.Type() == object.INTEGER_OBJ:
-		return evalArrayIndexExpression(left, index)
+	case left.Type() == object.ARRAY_OBJ:
+		if index.Type() == object.INTEGER_OBJ {
+			return evalArrayIndexExpression(left, index)
+		} else if index.Type() == object.RANGE_OBJ {
+			return evalArraySliceExpression(left, index)
+		} else {
+			return newError("array index must be INTEGER or RANGE, got %s", index.Type())
+		}
 	case left.Type() == object.HASH_OBJ:
 		return evalHashIndexExpression(left, index)
 	default:
@@ -723,6 +843,57 @@ func evalArrayIndexExpression(array, index object.Object) object.Object {
 	return arrayObject.Elements[idx]
 }
 
+func evalArraySliceExpression(array, rangeObj object.Object) object.Object {
+	arrayObject := array.(*object.Array)
+	rangeVal := rangeObj.(*object.Range)
+	
+	// Get start and end values
+	var startIdx, endIdx int64
+	
+	// Handle start index
+	if rangeVal.Start == nil || rangeVal.Start.Type() == object.NONE_OBJ {
+		startIdx = 0
+	} else if rangeVal.Start.Type() == object.INTEGER_OBJ {
+		startIdx = rangeVal.Start.(*object.Integer).Value
+		if startIdx < 0 {
+			startIdx = int64(len(arrayObject.Elements)) + startIdx
+		}
+	} else {
+		return newError("array slice start index must be INTEGER, got %s", rangeVal.Start.Type())
+	}
+	
+	// Handle end index
+	if rangeVal.End == nil || rangeVal.End.Type() == object.NONE_OBJ {
+		endIdx = int64(len(arrayObject.Elements))
+	} else if rangeVal.End.Type() == object.INTEGER_OBJ {
+		endIdx = rangeVal.End.(*object.Integer).Value
+		if endIdx < 0 {
+			endIdx = int64(len(arrayObject.Elements)) + endIdx
+		}
+	} else {
+		return newError("array slice end index must be INTEGER, got %s", rangeVal.End.Type())
+	}
+	
+	// Adjust indices if out of bounds
+	if startIdx < 0 {
+		startIdx = 0
+	}
+	if endIdx > int64(len(arrayObject.Elements)) {
+		endIdx = int64(len(arrayObject.Elements))
+	}
+	if startIdx >= int64(len(arrayObject.Elements)) || endIdx <= 0 || startIdx >= endIdx {
+		return &object.Array{Elements: []object.Object{}}
+	}
+	
+	// Create new array with elements from start to end
+	newElements := make([]object.Object, 0, endIdx-startIdx)
+	for i := startIdx; i < endIdx; i++ {
+		newElements = append(newElements, arrayObject.Elements[i])
+	}
+	
+	return &object.Array{Elements: newElements}
+}
+
 func evalExpressions(exps []ast.Expression, env *object.Environment) []object.Object {
 	var result []object.Object
 
@@ -741,8 +912,12 @@ func extendFunctionEnv(
 	fn *object.Function,
 	args []object.Object,
 	global *object.Environment,
+	functionName string,
 ) *object.Environment {
 	env := object.NewEnclosedEnvironment(fn.Env)
+	
+	// Set function name for stack traces
+	env.Set("__function_name", &object.String{Value: functionName})
 
 	for i, param := range fn.Parameters {
 		if i < len(args) {
@@ -755,7 +930,6 @@ func extendFunctionEnv(
 					env.Set(param.Name.Value, newError("identifier not found: "+ident.Value))
 				}
 			} else {
-
 				defaultVal := Eval(param.DefaultValue, fn.Env)
 				env.Set(param.Name.Value, defaultVal)
 			}
@@ -879,6 +1053,8 @@ func evalInfixExpression(
 		return evalBooleanInfixExpression(operator, left, right)
 	case left.Type() == object.STRING_OBJ && right.Type() == object.STRING_OBJ:
 		return evalStringInfixExpression(operator, left, right)
+	case left.Type() == object.ARRAY_OBJ && right.Type() == object.ARRAY_OBJ:
+		return evalArrayInfixExpression(operator, left, right)
 	case left == object.NONE && right == object.NONE:
 		return nativeBoolToBooleanObject(operator == "==")
 	case left == object.NONE || right == object.NONE:
@@ -938,6 +1114,25 @@ func evalStringInfixExpression(
 	leftVal := left.(*object.String).Value
 	rightVal := right.(*object.String).Value
 	return &object.String{Value: leftVal + rightVal}
+}
+
+func evalArrayInfixExpression(
+	operator string,
+	left, right object.Object,
+) object.Object {
+	if operator != "+" {
+		return newError("unknown operator: %s %s %s",
+			left.Type(), operator, right.Type())
+	}
+	leftVal := left.(*object.Array)
+	rightVal := right.(*object.Array)
+	
+	// Create a new array with the combined elements
+	newElements := make([]object.Object, len(leftVal.Elements)+len(rightVal.Elements))
+	copy(newElements, leftVal.Elements)
+	copy(newElements[len(leftVal.Elements):], rightVal.Elements)
+	
+	return &object.Array{Elements: newElements}
 }
 
 func evalBooleanInfixExpression(operator string, left, right object.Object) object.Object {
@@ -1225,7 +1420,7 @@ func evalIfExpression(ie *ast.IfStatement, env *object.Environment) object.Objec
 }
 
 func newError(format string, a ...interface{}) *object.Error {
-	return &object.Error{Message: fmt.Sprintf(format, a...)}
+	return object.NewError(fmt.Sprintf(format, a...))
 }
 
 func isError(obj object.Object) bool {
@@ -1379,7 +1574,8 @@ func evalImportStatement(node *ast.ImportStatement, env *object.Environment) obj
 		return newError("could not import file: %s", err)
 	}
 
-	l := lexer.New(string(fileContent))
+	// Create lexer and parser with filename for better error reporting
+	l := lexer.New(string(fileContent), filePath)
 	p := parser.New(l)
 	program := p.ParseProgram()
 

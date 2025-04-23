@@ -1,11 +1,28 @@
 // token/token.go
 package token
 
+import "fmt"
+
 type TokenType string
 
+type Position struct {
+	Line   int
+	Column int
+	File   string
+}
+
+// String returns a string representation of the position
+func (p Position) String() string {
+	if p.File != "" {
+		return fmt.Sprintf("%s:%d:%d", p.File, p.Line, p.Column)
+	}
+	return fmt.Sprintf("%d:%d", p.Line, p.Column)
+}
+
 type Token struct {
-	Type    TokenType
-	Literal string
+	Type     TokenType
+	Literal  string
+	Position Position
 }
 
 const (

@@ -178,6 +178,28 @@ func (ie *IndexExpression) String() string {
 	return out.String()
 }
 
+type RangeExpression struct {
+	Token token.Token // The : token
+	Start Expression  // Start index (can be nil for [:end])
+	End   Expression  // End index (can be nil for [start:])
+}
+
+func (re *RangeExpression) expressionNode()      {}
+func (re *RangeExpression) TokenLiteral() string { return re.Token.Literal }
+func (re *RangeExpression) String() string {
+	var out bytes.Buffer
+	out.WriteString("(")
+	if re.Start != nil {
+		out.WriteString(re.Start.String())
+	}
+	out.WriteString(":")
+	if re.End != nil {
+		out.WriteString(re.End.String())
+	}
+	out.WriteString(")")
+	return out.String()
+}
+
 type HashLiteral struct {
 	Token token.Token
 	Pairs map[Expression]Expression

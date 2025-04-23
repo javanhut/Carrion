@@ -1,0 +1,7 @@
+print("Debug test")
+attempt:
+    raise "Test error"
+ensnare "Error":
+    print("Caught specific error")
+resolve:
+    print("Finalized")

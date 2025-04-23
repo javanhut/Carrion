@@ -85,7 +85,7 @@ func (p *Parser) isInsideGrimoire() bool {
 	return p.contextStack[len(p.contextStack)-1] == "grim"
 }
 
-func New(l *lexer.Lexer) *Parser {
+func New(l *lexer.Lexer, fileName ...string) *Parser {
 	p := &Parser{l: l, errors: []string{}}
 	p.nextToken()
 	p.nextToken()
@@ -766,10 +766,53 @@ func (p *Parser) parseFloatLiteral() ast.Expression {
 func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
 	exp := &ast.IndexExpression{Token: p.currToken, Left: left}
 	p.nextToken()
-	exp.Index = p.parseExpression(LOWEST)
+	
+	// Check if this is a slice operation with the colon syntax (arr[start:end])
+	if p.currTokenIs(token.COLON) {
+		// Empty start index (arr[:end])
+		rangeExp := &ast.RangeExpression{
+			Token: p.currToken,
+			Start: nil,
+			End:   nil,
+		}
+		
+		// Parse end index if present
+		if !p.peekTokenIs(token.RBRACK) {
+			p.nextToken()
+			rangeExp.End = p.parseExpression(LOWEST)
+		}
+		
+		exp.Index = rangeExp
+	} else {
+		// Regular index or start of range
+		startIdx := p.parseExpression(LOWEST)
+		
+		// Check if this is a slice operation (arr[start:end])
+		if p.peekTokenIs(token.COLON) {
+			p.nextToken() // consume the colon
+			rangeExp := &ast.RangeExpression{
+				Token: p.currToken,
+				Start: startIdx,
+				End:   nil,
+			}
+			
+			// Parse end index if present
+			if !p.peekTokenIs(token.RBRACK) {
+				p.nextToken()
+				rangeExp.End = p.parseExpression(LOWEST)
+			}
+			
+			exp.Index = rangeExp
+		} else {
+			// Regular index expression
+			exp.Index = startIdx
+		}
+	}
+	
 	if !p.expectPeek(token.RBRACK) {
 		return nil
 	}
+	
 	return exp
 }
 
@@ -840,6 +883,11 @@ func (p *Parser) nextToken() {
 func (p *Parser) ParseProgram() *ast.Program {
 	program := &ast.Program{}
 	program.Statements = []ast.Statement{}
+	
+	// Set the filename from the lexer's token if available
+	if p.currToken.Position.File != "" {
+		program.FileName = p.currToken.Position.File
+	}
 
 	for p.currToken.Type != token.EOF {
 

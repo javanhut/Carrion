@@ -32,6 +32,7 @@ const (
 	GRIMOIRE_OBJ     = "GRIMOIRE"
 	INSTANCE_OBJ     = "INSTANCE"
 	NAMESPACE_OBJ    = "NAMESPACE"
+	RANGE_OBJ        = "RANGE"
 )
 
 var NONE = &None{}
@@ -71,12 +72,7 @@ type ReturnValue struct {
 func (rv *ReturnValue) Type() ObjectType { return RETURN_VALUE_OBJ }
 func (rv *ReturnValue) Inspect() string  { return rv.Value.Inspect() }
 
-type Error struct {
-	Message string
-}
-
-func (e *Error) Type() ObjectType { return ERROR_OBJ }
-func (e *Error) Inspect() string  { return "ERROR: " + e.Message }
+// Error type is now defined in error_handling.go
 
 type Function struct {
 	Parameters  []*ast.Parameter
@@ -247,6 +243,17 @@ type Skip struct{}
 
 func (s *Skip) Type() ObjectType { return "SKIP" }
 func (s *Skip) Inspect() string  { return "skip" }
+
+// Range represents a slice range
+type Range struct {
+	Start Object
+	End   Object
+}
+
+func (r *Range) Type() ObjectType { return RANGE_OBJ }
+func (r *Range) Inspect() string {
+	return fmt.Sprintf("%s:%s", r.Start.Inspect(), r.End.Inspect())
+}
 
 var (
 	STOP = &Stop{}
