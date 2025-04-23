@@ -2,7 +2,7 @@
 
 # Existing variables
 USER_NAME ?= username
-IMAGE_NAME ?= carrionlanguage
+IMAGE_NAME ?= carrion
 VERSION ?= latest
 OS ?= linux
 

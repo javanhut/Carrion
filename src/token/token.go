@@ -72,7 +72,7 @@ const (
 	INIT        TokenType = "INIT"
 	SELF        TokenType = "SELF"
 	SPELL       TokenType = "SPELL"
-	SPELLBOOK   TokenType = "SPELLBOOK"
+	GRIMOIRE    TokenType = "GRIMOIRE"
 	TRUE        TokenType = "TRUE"
 	FALSE       TokenType = "FALSE"
 	IF          TokenType = "IF"
@@ -112,7 +112,7 @@ var keywords = map[string]TokenType{
 	"spell":       SPELL,
 	"self":        SELF,
 	"init":        INIT,
-	"spellbook":   SPELLBOOK,
+	"grim":        GRIMOIRE,
 	"True":        TRUE,
 	"False":       FALSE,
 	"if":          IF,

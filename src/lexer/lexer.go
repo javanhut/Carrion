@@ -4,7 +4,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/javanhut/TheCarrionLanguage/src/token"
+	"github.com/javanhut/Carrion/src/token"
 )
 
 type Lexer struct {

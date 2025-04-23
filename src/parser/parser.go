@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/javanhut/TheCarrionLanguage/src/ast"
-	"github.com/javanhut/TheCarrionLanguage/src/lexer"
-	"github.com/javanhut/TheCarrionLanguage/src/token"
+	"github.com/javanhut/Carrion/src/ast"
+	"github.com/javanhut/Carrion/src/lexer"
+	"github.com/javanhut/Carrion/src/token"
 )
 
 const (
@@ -78,11 +78,11 @@ type Parser struct {
 	statementParseFns map[token.TokenType]func() ast.Statement
 }
 
-func (p *Parser) isInsideSpellbook() bool {
+func (p *Parser) isInsideGrimoire() bool {
 	if len(p.contextStack) == 0 {
 		return false
 	}
-	return p.contextStack[len(p.contextStack)-1] == "spellbook"
+	return p.contextStack[len(p.contextStack)-1] == "grim"
 }
 
 func New(l *lexer.Lexer) *Parser {
@@ -178,7 +178,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerStatement(token.RESOLVE, p.parseResolveStatement)
 	p.registerStatement(token.ENSNARE, p.parseEnsnareStatement)
 	p.registerStatement(token.RAISE, p.parseRaiseStatement)
-	p.registerStatement(token.ARCANE, p.parseArcaneSpellbook)
+	p.registerStatement(token.ARCANE, p.parseArcaneGrimoire)
 	p.registerStatement(token.IGNORE, p.parseIgnoreStatement)
 	p.registerStatement(token.STOP, p.parseStopStatement)
 	p.registerStatement(token.SKIP, p.parseSkipStatement)
@@ -330,10 +330,10 @@ func (p *Parser) parseIgnoreStatement() ast.Statement {
 	return &ast.IgnoreStatement{Token: p.currToken}
 }
 
-func (p *Parser) parseArcaneSpellbook() ast.Statement {
-	stmt := &ast.ArcaneSpellbook{Token: p.currToken}
+func (p *Parser) parseArcaneGrimoire() ast.Statement {
+	stmt := &ast.ArcaneGrimoire{Token: p.currToken}
 
-	if !p.expectPeek(token.SPELLBOOK) {
+	if !p.expectPeek(token.GRIMOIRE) {
 		return nil
 	}
 	if !p.expectPeek(token.IDENT) {
@@ -870,8 +870,8 @@ func (p *Parser) parseStatement() ast.Statement {
 		return nil
 	case token.WHILE:
 		return p.parseWhileStatement()
-	case token.SPELLBOOK:
-		return p.parseSpellbookDefinition()
+	case token.GRIMOIRE:
+		return p.parseGrimoireDefinition()
 	case token.SPELL, token.INIT:
 
 		return p.parseFunctionDefinition()
@@ -890,7 +890,7 @@ func (p *Parser) parseStatement() ast.Statement {
 	case token.RAISE:
 		return p.parseRaiseStatement()
 	case token.ARCANE:
-		return p.parseArcaneSpellbook()
+		return p.parseArcaneGrimoire()
 	case token.IGNORE:
 		return p.parseIgnoreStatement()
 	case token.SKIP:
@@ -1541,8 +1541,8 @@ func (p *Parser) parseWhileStatement() ast.Statement {
 	return stmt
 }
 
-func (p *Parser) parseSpellbookDefinition() ast.Statement {
-	stmt := &ast.SpellbookDefinition{Token: p.currToken}
+func (p *Parser) parseGrimoireDefinition() ast.Statement {
+	stmt := &ast.GrimoireDefinition{Token: p.currToken}
 
 	if !p.expectPeek(token.IDENT) {
 		return nil
@@ -1569,7 +1569,7 @@ func (p *Parser) parseSpellbookDefinition() ast.Statement {
 		if p.peekTokenIs(token.INDENT) {
 			p.nextToken()
 
-			p.contextStack = append(p.contextStack, "spellbook")
+			p.contextStack = append(p.contextStack, "grim")
 			defer func() {
 				p.contextStack = p.contextStack[:len(p.contextStack)-1]
 			}()
@@ -1614,7 +1614,7 @@ func (p *Parser) parseSpellbookDefinition() ast.Statement {
 			p.nextToken()
 			fnStmt := p.parseFunctionDefinition()
 			if fnStmt == nil {
-				p.errors = append(p.errors, "Invalid function definition in single-line spellbook")
+				p.errors = append(p.errors, "Invalid function definition in single-line grimoire")
 				return stmt
 			}
 			fnDef := fnStmt.(*ast.FunctionDefinition)

@@ -6,10 +6,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/javanhut/TheCarrionLanguage/src/evaluator"
-	"github.com/javanhut/TheCarrionLanguage/src/lexer"
-	"github.com/javanhut/TheCarrionLanguage/src/object"
-	"github.com/javanhut/TheCarrionLanguage/src/parser"
+	"github.com/javanhut/Carrion/src/evaluator"
+	"github.com/javanhut/Carrion/src/lexer"
+	"github.com/javanhut/Carrion/src/object"
+	"github.com/javanhut/Carrion/src/parser"
 
 	"github.com/peterh/liner"
 )

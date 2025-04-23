@@ -9,7 +9,7 @@ import (
 
 	"github.com/peterh/liner"
 
-	"github.com/javanhut/TheCarrionLanguage/src/object"
+	"github.com/javanhut/Carrion/src/object"
 )
 
 func flushInputBuffer() {

@@ -139,7 +139,7 @@ You can set a type hint for variables and parameters.
 ```python
 x: str = "Foo"
 
-spellbook Foo:
+grim Foo:
     init(x:str = x):
         self.x = x
 
@@ -207,12 +207,12 @@ match foo:
 
 # Classes and Imports
 * Currently Classes are implemented as well as Imports
-- Classes in Carrion are known as "Spellbooks" and the Methods are spells within those Spellbooks
+- Classes in Carrion are known as "Grimoires" and the Methods are spells within those Grimoires
 
-# Example of how spellbooks are implemented
+# Example of how grimoires are implemented
 ```python
 
-spellbook Foobar:
+grim Foobar:
     init(foo):
         self.foo = foo
     spell foobar_method():
@@ -233,8 +233,8 @@ example.example_method()
 
 * Note: Once you import a file you have access to it's methods by calling in the class name.
 
-# OOP part of Spellbooks
-Spellbooks are Carrion's classes.
+# OOP part of Grimoires
+Grimoires are Carrion's classes.
 Not all OOP aspects are implemented but some are.
 You can declare self from any method and set them in the init.
 
@@ -244,7 +244,7 @@ e.g.
 # With init: init() constructor:
 
 ```python
-spellbook Foobar:
+grim Foobar:
     init(foo, bar):
         self.foo = foo
         self.bar = bar
@@ -261,7 +261,7 @@ foo.print_bar()
 # With spell init: spell init() constructor:
 
 ```python
-spellbook Foobar:
+grim Foobar:
     spell init(foo, bar):
         self.foo = foo
         self.bar = bar
@@ -282,10 +282,10 @@ So inspired by python it's no surprise.
 ## Abstraction
 In Carrion Language there is abstract classes but they are labeled by the keyword arcane.
 
-To declare an arcane spellbook you declare it as follows:
+To declare an arcane grimoire you declare it as follows:
 
 ```python
-arcane spellbook Foo:
+arcane grim Foo:
     init();
         ignore
 
@@ -297,7 +297,7 @@ For abstracted method they are labeled as arcane spells but uses the @ symbol an
 
 
 ```python
-arcane spellbook Foo:
+arcane grim Foo:
     @arcanespell
     spell foobar():
         ignore
@@ -310,11 +310,11 @@ You're probably wondering about the ignore. Yes ignore is the keyword that indic
 Inheritance is pretty similar to python. Currently the super method isn't implemented but you can share resources with self and inheriting from parent class.
 
 ```python
-spellbook Parent:
+grim Parent:
     spell parent_method():
         ignore
 
-spellbook Child(Parent):
+grim Child(Parent):
     init():
         ignore
 
@@ -330,7 +330,7 @@ Protected are declare by '__' double underscore while private are declared by '_
 
 e.g Protected:
 ```python
-spellbook Foo:
+grim Foo:
     init(var="foobar"):
         self.var = var
 
@@ -349,7 +349,7 @@ foobar.return_protected()
 
 e.g Private:
 ```python
-spellbook Foo:
+grim Foo:
     init(var="foobar"):
         self.var = var
 
@@ -371,14 +371,14 @@ Last OOP concept.
 You can overwrite spells from inherited parents.
 
 ```python
-spellbook Parent:
+grim Parent:
     init(name="parent"):
         self.name = name
     spell parent_method():
         return self.name
 
 
-spellbook Child(Parent):
+grim Child(Parent):
     init(name="child"):
         self.name = name
     spell parent_method(child_age="age"):
@@ -402,7 +402,7 @@ Finally resolve just finishes the functionality that if specified will always ru
 
 // Custom error
  // Define a custom error
-spellbook ValueError:
+grim ValueError:
     spell init(message):
         self.message = message
 

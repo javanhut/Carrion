@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/javanhut/TheCarrionLanguage/src/token"
+	"github.com/javanhut/Carrion/src/token"
 )
 
 type Identifier struct {
