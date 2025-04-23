@@ -166,11 +166,44 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		if isError(left) {
 			return left
 		}
-		index := Eval(node.Index, env)
-		if isError(index) {
-			return index
+		
+		// Check if the index is a RangeExpression for array slicing
+		if rangeExp, ok := node.Index.(*ast.RangeExpression); ok {
+			// Create Range object
+			rangeObj := &object.Range{}
+			
+			// Evaluate start index if present
+			if rangeExp.Start != nil {
+				startIdx := Eval(rangeExp.Start, env)
+				if isError(startIdx) {
+					return startIdx
+				}
+				rangeObj.Start = startIdx
+			} else {
+				rangeObj.Start = NONE
+			}
+			
+			// Evaluate end index if present
+			if rangeExp.End != nil {
+				endIdx := Eval(rangeExp.End, env)
+				if isError(endIdx) {
+					return endIdx
+				}
+				rangeObj.End = endIdx
+			} else {
+				rangeObj.End = NONE
+			}
+			
+			// Evaluate array slicing with the range object
+			return evalIndexExpression(left, rangeObj)
+		} else {
+			// Regular index evaluation
+			index := Eval(node.Index, env)
+			if isError(index) {
+				return index
+			}
+			return evalIndexExpression(left, index)
 		}
-		return evalIndexExpression(left, index)
 	case *ast.GrimoireDefinition:
 		return evalGrimoireDefinition(node, env)
 	case *ast.AttemptStatement:
@@ -682,8 +715,14 @@ func evalIndexExpression(left, index object.Object) object.Object {
 	switch {
 	case left.Type() == object.TUPLE_OBJ:
 		return evalTupleIndexExpression(left, index)
-	case left.Type() == object.ARRAY_OBJ && index.Type() == object.INTEGER_OBJ:
-		return evalArrayIndexExpression(left, index)
+	case left.Type() == object.ARRAY_OBJ:
+		if index.Type() == object.INTEGER_OBJ {
+			return evalArrayIndexExpression(left, index)
+		} else if index.Type() == object.RANGE_OBJ {
+			return evalArraySliceExpression(left, index)
+		} else {
+			return newError("array index must be INTEGER or RANGE, got %s", index.Type())
+		}
 	case left.Type() == object.HASH_OBJ:
 		return evalHashIndexExpression(left, index)
 	default:
@@ -721,6 +760,57 @@ func evalArrayIndexExpression(array, index object.Object) object.Object {
 		return NONE
 	}
 	return arrayObject.Elements[idx]
+}
+
+func evalArraySliceExpression(array, rangeObj object.Object) object.Object {
+	arrayObject := array.(*object.Array)
+	rangeVal := rangeObj.(*object.Range)
+	
+	// Get start and end values
+	var startIdx, endIdx int64
+	
+	// Handle start index
+	if rangeVal.Start == nil || rangeVal.Start.Type() == object.NONE_OBJ {
+		startIdx = 0
+	} else if rangeVal.Start.Type() == object.INTEGER_OBJ {
+		startIdx = rangeVal.Start.(*object.Integer).Value
+		if startIdx < 0 {
+			startIdx = int64(len(arrayObject.Elements)) + startIdx
+		}
+	} else {
+		return newError("array slice start index must be INTEGER, got %s", rangeVal.Start.Type())
+	}
+	
+	// Handle end index
+	if rangeVal.End == nil || rangeVal.End.Type() == object.NONE_OBJ {
+		endIdx = int64(len(arrayObject.Elements))
+	} else if rangeVal.End.Type() == object.INTEGER_OBJ {
+		endIdx = rangeVal.End.(*object.Integer).Value
+		if endIdx < 0 {
+			endIdx = int64(len(arrayObject.Elements)) + endIdx
+		}
+	} else {
+		return newError("array slice end index must be INTEGER, got %s", rangeVal.End.Type())
+	}
+	
+	// Adjust indices if out of bounds
+	if startIdx < 0 {
+		startIdx = 0
+	}
+	if endIdx > int64(len(arrayObject.Elements)) {
+		endIdx = int64(len(arrayObject.Elements))
+	}
+	if startIdx >= int64(len(arrayObject.Elements)) || endIdx <= 0 || startIdx >= endIdx {
+		return &object.Array{Elements: []object.Object{}}
+	}
+	
+	// Create new array with elements from start to end
+	newElements := make([]object.Object, 0, endIdx-startIdx)
+	for i := startIdx; i < endIdx; i++ {
+		newElements = append(newElements, arrayObject.Elements[i])
+	}
+	
+	return &object.Array{Elements: newElements}
 }
 
 func evalExpressions(exps []ast.Expression, env *object.Environment) []object.Object {
