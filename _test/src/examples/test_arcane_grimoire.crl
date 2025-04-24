@@ -1,0 +1,14 @@
+arcane grim Animal:
+    @arcanespell
+    spell speak():
+        ignore
+
+grim Dog(Animal):
+    spell speak():
+         print("Woof!")
+
+// animal = Animal()
+
+// Regular grimoires can still be instantiated
+dog = Dog()
+dog.speak()

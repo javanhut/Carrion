@@ -1,0 +1,5 @@
+grim ValueError:
+  init(message):
+    self.message = message
+
+raise ValueError("Value error was detected.")

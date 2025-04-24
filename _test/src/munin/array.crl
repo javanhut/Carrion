@@ -1,0 +1,25 @@
+grim Array:
+    init(elements=[]):
+        self.elements = elements
+    
+    spell len():
+        return len(self.elements)
+
+    spell append(ele):
+        self.elements = self.elements + [ele]
+
+    spell print():
+        print(self.elements)
+    
+    spell to_string():
+        return str(self.elements)
+
+    spell pop():
+        length = self.len()
+        if length > 0:
+            popped_element = self.elements[length-1]
+            self.elements = self.elements[0:length-1]
+            return popped_element
+        else:
+            print(f"No elements are in Array")
+

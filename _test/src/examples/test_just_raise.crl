@@ -1,0 +1,3 @@
+print("Before raise")
+raise "This is a test error"
+print("After raise")

@@ -1,0 +1,41 @@
+// Test Array grimoire wrapper functionality
+
+// Create a new array
+x = []
+print("Created empty array x: " + str(x))
+print("Type of x: " + type(x))
+
+// Use array method from the grimoire
+x.append(1)
+x.append(2)
+x.append(3)
+print("After append: ")
+x.print()
+
+// Array addition
+y = [4, 5, 6]
+print("Array y: " + str(y))
+
+// Add arrays
+z = x + y
+print("Type of z: " + type(z))
+print("z = x + y: ")
+z.print()
+
+// Array indexing 
+print("z[2]: " + str(z[2]))
+
+// Array slicing
+slice = z[1:4]
+print("z[1:4]: " + str(slice))
+
+// Array method
+popped = z.pop()
+print("After z.pop(): ")
+z.print()
+print("Popped element: " + str(popped))
+
+// Test for loop on array instance
+print("Iterating through z:")
+for i in z:
+    print(i)

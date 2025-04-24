@@ -1,0 +1,31 @@
+arcane grim Exception:
+    @arcanespell
+    init():
+        ignore
+    @arcanespell
+    spell Type():
+        ignore
+
+
+grim GenericError(Exception):
+    init(message: str = ""):
+        self.message = message
+
+    spell Type(type:str = "GenericError"):
+        return type
+
+grim ValueError(Exception):
+    init(message: str= ""):
+        self.message = message
+
+    spell Type(type:str = "GenericError"):
+        return type
+
+grim RaiseError:
+    init(err: GenericError):
+        self.err = err
+        self.message = self.err.message
+
+    spell throw():
+        raise self.err(self.message)
+
