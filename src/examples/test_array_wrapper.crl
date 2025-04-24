@@ -1,0 +1,42 @@
+// Test automatic wrapping of array literals with Array grimoire
+
+// Create arrays
+a = [1, 2, 3]
+b = [4, 5, 6]
+
+print("Array a: " + str(a))
+print("Array b: " + str(b))
+
+// Test array methods to verify grimoire functionality
+a.append(4)
+print("After append: " + str(a))
+print("Array length: " + str(a.len()))
+print("Array as string: " + a.to_string())
+
+// Test indexing on wrapped array
+print("a[0] = " + str(a[0]))
+print("a[1] = " + str(a[1]))
+print("a[2] = " + str(a[2]))
+print("a[3] = " + str(a[3]))
+
+// Test array addition
+c = a + b
+print("a + b = " + str(c))
+print("c length: " + str(len(c)))
+print("c[0] = " + str(c[0]))
+print("c[6] = " + str(c[6]))
+
+// Test array slicing
+d = c[2:5]
+print("Slice c[2:5] = " + str(d))
+print("d length: " + str(len(d)))
+
+// Test multi-level addition
+e = a + b + c
+print("a + b + c = " + str(e))
+print("e length: " + str(len(e)))
+
+// Test pop method
+popped = a.pop()
+print("Popped element: " + str(popped))
+print("Array after pop: " + str(a))

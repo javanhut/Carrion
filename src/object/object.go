@@ -223,7 +223,15 @@ type Instance struct {
 }
 
 func (i *Instance) Type() ObjectType { return INSTANCE_OBJ }
-func (i *Instance) Inspect() string  { return fmt.Sprintf("<instance of %s>", i.Grimoire.Name) }
+func (i *Instance) Inspect() string  { 
+	// Special case for Array grimoire - inspect the elements
+	if i.Grimoire.Name == "Array" {
+		if elements, ok := i.Env.Get("elements"); ok {
+			return elements.Inspect()
+		}
+	}
+	return fmt.Sprintf("<instance of %s>", i.Grimoire.Name) 
+}
 
 // object/object.go
 

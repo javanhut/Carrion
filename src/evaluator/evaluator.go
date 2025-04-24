@@ -76,6 +76,7 @@ var (
 	importedFiles = map[string]bool{}
 )
 
+
 func Eval(node ast.Node, env *object.Environment) object.Object {
 	switch node := node.(type) {
 
@@ -199,7 +200,10 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		if len(elements) == 1 && isError(elements[0]) {
 			return elements[0]
 		}
-		return &object.Array{Elements: elements}
+		// Create primitive array
+		array := &object.Array{Elements: elements}
+		// Wrap with Array grimoire
+		return wrapPrimitiveWithGrimoire(array, env)
 
 	case *ast.StringLiteral:
 		return &object.String{Value: node.Value}
@@ -532,12 +536,6 @@ func checkType(val object.Object, expectedType string) bool {
 	}
 }
 
-func getGlobalEnv(env *object.Environment) *object.Environment {
-	for env.GetOuter() != nil {
-		env = env.GetOuter()
-	}
-	return env
-}
 
 func evalGrimoireDefinition(node *ast.GrimoireDefinition, env *object.Environment) object.Object {
 	methods := map[string]*object.Function{}
@@ -804,6 +802,32 @@ func evalIndexExpression(left, index object.Object) object.Object {
 		} else {
 			return newError("array index must be INTEGER or RANGE, got %s", index.Type())
 		}
+	case left.Type() == object.INSTANCE_OBJ:
+		// If it's an instance of Array grimoire, handle it specially
+		instance := left.(*object.Instance)
+		if instance.Grimoire.Name == "Array" {
+			// Get the elements array from the instance
+			elements, ok := instance.Env.Get("elements")
+			if !ok {
+				return newError("invalid Array instance: elements field not found")
+			}
+			
+			// Extract the array from the object, whether it's a primitive array or a wrapped instance
+			arrayObj := getArrayFromObject(elements)
+			if arrayObj == nil {
+				return newError("invalid Array instance: elements is not an array, got %s", elements.Type())
+			}
+			
+			// Now handle indexing on the extracted array
+			if index.Type() == object.INTEGER_OBJ {
+				return evalArrayIndexExpression(arrayObj, index)
+			} else if index.Type() == object.RANGE_OBJ {
+				return evalArraySliceExpression(arrayObj, index)
+			} else {
+				return newError("array index must be INTEGER or RANGE, got %s", index.Type())
+			}
+		}
+		return newError("index operator not supported for instance of %s", instance.Grimoire.Name)
 	case left.Type() == object.HASH_OBJ:
 		return evalHashIndexExpression(left, index)
 	default:
@@ -908,38 +932,6 @@ func evalExpressions(exps []ast.Expression, env *object.Environment) []object.Ob
 	return result
 }
 
-func extendFunctionEnv(
-	fn *object.Function,
-	args []object.Object,
-	global *object.Environment,
-	functionName string,
-) *object.Environment {
-	env := object.NewEnclosedEnvironment(fn.Env)
-	
-	// Set function name for stack traces
-	env.Set("__function_name", &object.String{Value: functionName})
-
-	for i, param := range fn.Parameters {
-		if i < len(args) {
-			env.Set(param.Name.Value, args[i])
-		} else if param.DefaultValue != nil {
-			if ident, ok := param.DefaultValue.(*ast.Identifier); ok {
-				if val, ok := global.Get(ident.Value); ok {
-					env.Set(param.Name.Value, val)
-				} else {
-					env.Set(param.Name.Value, newError("identifier not found: "+ident.Value))
-				}
-			} else {
-				defaultVal := Eval(param.DefaultValue, fn.Env)
-				env.Set(param.Name.Value, defaultVal)
-			}
-		} else {
-			env.Set(param.Name.Value, NONE)
-		}
-	}
-
-	return env
-}
 
 func unwrapReturnValue(obj object.Object) object.Object {
 	if returnValue, ok := obj.(*object.ReturnValue); ok {
@@ -1055,6 +1047,38 @@ func evalInfixExpression(
 		return evalStringInfixExpression(operator, left, right)
 	case left.Type() == object.ARRAY_OBJ && right.Type() == object.ARRAY_OBJ:
 		return evalArrayInfixExpression(operator, left, right)
+	case left.Type() == object.INSTANCE_OBJ && right.Type() == object.INSTANCE_OBJ:
+		// Check if both are Array instances
+		leftInst := left.(*object.Instance)
+		rightInst := right.(*object.Instance)
+		
+		if leftInst.Grimoire.Name == "Array" && rightInst.Grimoire.Name == "Array" && operator == "+" {
+			result := combineArrays(left, right, leftInst.Env)
+			if result != nil {
+				return result
+			}
+		}
+		return newError("cannot perform operation %s between instances", operator)
+	case left.Type() == object.INSTANCE_OBJ && right.Type() == object.ARRAY_OBJ:
+		// Handle Array instance + primitive array
+		if isArrayGrimoireInstance(left) && operator == "+" {
+			leftInst := left.(*object.Instance)
+			result := combineArrays(left, right, leftInst.Env)
+			if result != nil {
+				return result
+			}
+		}
+		return newError("cannot perform operation %s between instance and array", operator)
+	case left.Type() == object.ARRAY_OBJ && right.Type() == object.INSTANCE_OBJ:
+		// Handle primitive array + Array instance
+		if isArrayGrimoireInstance(right) && operator == "+" {
+			rightInst := right.(*object.Instance)
+			result := combineArrays(left, right, rightInst.Env)
+			if result != nil {
+				return result
+			}
+		}
+		return newError("cannot perform operation %s between array and instance", operator)
 	case left == object.NONE && right == object.NONE:
 		return nativeBoolToBooleanObject(operator == "==")
 	case left == object.NONE || right == object.NONE:
