@@ -1,0 +1,29 @@
+// Test array element swapping with tuple unpacking
+
+// Create a regular array
+regular_array = [5, 3, 8, 1, 4, 2]
+print("Original array:")
+print(regular_array)
+
+// Test negative indexing
+print("\nAccessing with negative indices:")
+print("Array[-1] =", regular_array[-1])  // Last element
+print("Array[-2] =", regular_array[-2])  // Second to last element
+
+// Test tuple unpacking swap with direct array elements (no method calls)
+print("\nTuple unpacking swap:")
+(regular_array[0], regular_array[-1]) = (regular_array[-1], regular_array[0])
+print("After swapping first and last elements:")
+print(regular_array)
+
+// Test bubble sort with tuple unpacking
+print("\nBubble sort with tuple unpacking:")
+n = len(regular_array)
+for i in range(n):
+    for j in range(0, n-i-1):
+        if regular_array[j] > regular_array[j+1]:
+            // Swap using tuple unpacking
+            (regular_array[j], regular_array[j+1]) = (regular_array[j+1], regular_array[j])
+
+print("Sorted array:")
+print(regular_array)

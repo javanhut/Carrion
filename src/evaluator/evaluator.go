@@ -69,11 +69,18 @@ func (ctx *EvalContext) CurrentPosition() token.Position {
 	return token.Position{File: ctx.fileName}
 }
 
+// InitEvalContext initializes the global evaluation context
+// This allows for better error reporting and debugging
+func InitEvalContext(fileName string) {
+	ctx = NewEvalContext(fileName)
+}
+
 var (
 	NONE          = &object.None{Value: "None"}
 	TRUE          = &object.Boolean{Value: true}
 	FALSE         = &object.Boolean{Value: false}
 	importedFiles = map[string]bool{}
+	ctx           *EvalContext
 )
 
 func Eval(node ast.Node, env *object.Environment) object.Object {
@@ -463,6 +470,35 @@ func evalAssignStatement(node *ast.AssignStatement, env *object.Environment) obj
 
 		env.Set(target.Value, val)
 		return val
+		
+	case *ast.TupleAssignment:
+		// Handle tuple unpacking: (a, b) = (1, 2)
+		// Evaluate the right-hand side first
+		val := Eval(node.Value, env)
+		if isError(val) {
+			return val
+		}
+
+		// Extract values from the right-hand side
+		var values []object.Object
+		switch v := val.(type) {
+		case *object.Tuple:
+			values = v.Elements
+		case *object.Array:
+			values = v.Elements
+		default:
+			return newError("cannot unpack non-iterable %s into %d values", 
+				val.Type(), len(target.Elements))
+		}
+
+		// Check if the number of elements matches
+		if len(values) != len(target.Elements) {
+			return newError("cannot unpack %d values into %d variables", 
+				len(values), len(target.Elements))
+		}
+
+		// Use our tuple unpacking function to assign values
+		return evalTupleUnpacking(target.Elements, values, env)
 
 	case *ast.DotExpression:
 		left := Eval(target.Left, env)
@@ -480,13 +516,148 @@ func evalAssignStatement(node *ast.AssignStatement, env *object.Environment) obj
 		instance.Env.Set(target.Right.Value, val)
 		return val
 
-	case *ast.TupleLiteral:
+	case *ast.CallExpression:
+		// Special case for Array elements access with indexing (e.g., arr.elements[i])
+		if dotExpr, ok := target.Function.(*ast.DotExpression); ok && len(target.Arguments) == 1 {
+			// Check if this is accessing the elements property of an Array instance
+			if dotExpr.Right.Value == "elements" {
+				// Get the instance
+				instance := Eval(dotExpr.Left, env)
+				if isError(instance) {
+					return instance
+				}
+				
+				// Make sure it's an object instance
+				objInstance, ok := instance.(*object.Instance)
+				if !ok {
+					return newError("invalid assignment target: %s", instance.Type())
+				}
+				
+				// Get the elements property (should be an array)
+				elements, ok := objInstance.Env.Get("elements")
+				if !ok {
+					return newError("property not found: elements")
+				}
+				
+				// Make sure it's an array
+				arrayObj, ok := elements.(*object.Array)
+				if !ok {
+					return newError("property 'elements' is not an array, got %s", elements.Type())
+				}
+				
+				// Get the index
+				index := Eval(target.Arguments[0], env)
+				if isError(index) {
+					return index
+				}
+				
+				// Make sure it's an integer
+				indexInt, ok := index.(*object.Integer)
+				if !ok {
+					return newError("array index must be an integer, got %s", index.Type())
+				}
+				
+				// Get the value to assign
+				val := Eval(node.Value, env)
+				if isError(val) {
+					return val
+				}
+				
+				// Support negative indexing
+				idx := indexInt.Value
+				length := int64(len(arrayObj.Elements))
+				if idx < 0 {
+					idx = length + idx
+				}
+				
+				// Check if index is in range
+				if idx < 0 || idx >= length {
+					return newError("array index out of range: %d", idx)
+				}
+				
+				// Actually do the assignment
+				arrayObj.Elements[idx] = val
+				return val
+			}
+		}
+		
+		// For other call expressions, create detailed diagnostic error to help debug the issue
+		diagError := newAssignmentError("invalid assignment target: *ast.CallExpression", target, 
+			"Cannot directly assign to a method call result")
+		
+		// Try to extract info from the call expression to give better error messages
+		if dotExpr, ok := target.Function.(*ast.DotExpression); ok {
+			diagError.Message += fmt.Sprintf("\nAttempting to assign to property/method '%s'", dotExpr.Right.Value)
+			
+			// Special case for sort method
+			if len(target.Arguments) == 0 && dotExpr.Right.Value == "sort" {
+				diagError.Message += "\nDirect assignment to a method call (arr.sort()) is not supported. " +
+					"The 'sort' method will modify the array in-place, but cannot be used as an assignment target."
+			}
+			
+			// For method with indexed access in arguments
+			if len(target.Arguments) > 0 {
+				diagError.Message += fmt.Sprintf("\nMethod has %d arguments. Try accessing the array directly.", 
+					len(target.Arguments))
+			}
+		}
+		
+		// Try to provide a useful explanation and workaround
+		diagError.Message += "\n\nPossible fix: If you're trying to modify an array element, use direct indexing:\n" +
+		"  arr.elements[index] = value  // correct\n" +
+		"instead of:\n" +
+		"  arr.method()[index] = value  // incorrect - method results can't be assigned to"
+
+		return diagError
+
+	case *ast.IndexExpression:
+		// Handle array[index] = value assignments
+		left := Eval(target.Left, env)
+		if isError(left) {
+			return left
+		}
+
+		index := Eval(target.Index, env)
+		if isError(index) {
+			return index
+		}
 
 		val := Eval(node.Value, env)
 		if isError(val) {
 			return val
 		}
 
+		// Handle array indexing
+		if left.Type() == object.ARRAY_OBJ && index.Type() == object.INTEGER_OBJ {
+			arrayObj := left.(*object.Array)
+			idx := index.(*object.Integer).Value
+			length := int64(len(arrayObj.Elements))
+			
+			// Support negative indexing
+			if idx < 0 {
+				idx = length + idx
+			}
+			
+			// Check if index is in range
+			if idx < 0 || idx >= length {
+				return newError("array index out of range: %d", idx)
+			}
+			
+			// Assign to the array at the given index
+			arrayObj.Elements[idx] = val
+			return val
+		}
+		
+		return newError("invalid assignment target: %s[%s]", left.Type(), index.Type())
+
+	case *ast.TupleLiteral:
+		// Evaluate the right-hand side first (Python-style)
+		val := Eval(node.Value, env)
+		if isError(val) {
+			return val
+		}
+
+		// Extract values from the right-hand side 
 		var values []object.Object
 		switch v := val.(type) {
 		case *object.Tuple:
@@ -497,18 +668,8 @@ func evalAssignStatement(node *ast.AssignStatement, env *object.Environment) obj
 			return newError("cannot unpack non-iterable type: %s", val.Type())
 		}
 
-		if len(target.Elements) != len(values) {
-			return newError("unpacking mismatch: expected %d values, got %d", len(target.Elements), len(values))
-		}
-
-		for i, expr := range target.Elements {
-			ident, ok := expr.(*ast.Identifier)
-			if !ok {
-				return newError("invalid assignment target in tuple assignment")
-			}
-			env.Set(ident.Value, values[i])
-		}
-		return val
+		// Use our dedicated tuple unpacking function
+		return evalTupleUnpacking(target.Elements, values, env)
 
 	default:
 		return newError("invalid assignment target: %T", node.Name)
@@ -792,6 +953,188 @@ func evalTupleLiteral(tl *ast.TupleLiteral, env *object.Environment) object.Obje
 	return &object.Tuple{Elements: elements}
 }
 
+// Helper function to perform the actual tuple unpacking assignment
+// This simulates how Python does tuple unpacking: evaluate all right-hand side values
+// first, and then assign them to the left-hand side targets
+func evalTupleUnpacking(targets []ast.Expression, values []object.Object, env *object.Environment) object.Object {
+	// Make sure we have the right number of values
+	if len(targets) != len(values) {
+		return newError("unpacking mismatch: expected %d values, got %d", len(targets), len(values))
+	}
+
+	// Special case: All values need to be evaluated BEFORE any assignments are made
+	// This is critical for swaps to work correctly (Python-style)
+	// For example: (a, b) = (b, a) should swap a and b correctly
+	
+	// First pass: copy all right-hand values to prevent them from being overwritten
+	// during the assignment process
+	tempValues := make([]object.Object, len(values))
+	copy(tempValues, values)
+
+	// Define a function to assign a value to a target (for recursive assignments)
+	var assignToTarget func(target ast.Expression, value object.Object) object.Object
+
+	assignToTarget = func(target ast.Expression, value object.Object) object.Object {
+		switch target := target.(type) {
+		case *ast.Identifier:
+			// Simple variable assignment
+			env.Set(target.Value, value)
+			return value
+
+		case *ast.IndexExpression:
+			// Handle indexing operations like arr[i] or obj.elements[i]
+			leftObj := Eval(target.Left, env)
+			if isError(leftObj) {
+				return leftObj
+			}
+			
+			// Handle case where left is a DotExpression result (obj.elements)
+			if dotObj, ok := target.Left.(*ast.DotExpression); ok {
+				// This is a property access followed by indexing (obj.prop[idx])
+				// Special case for Array.elements[j]
+				if dotObj.Right.Value == "elements" {
+					// Get the instance from the left part
+					instance := Eval(dotObj.Left, env)
+					if isError(instance) {
+						return instance
+					}
+					
+					// Make sure it's an instance
+					objInstance, ok := instance.(*object.Instance)
+					if !ok {
+						return newError("invalid assignment target: %s is not an instance", instance.Type())
+					}
+					
+					// Get the elements property
+					elements, ok := objInstance.Env.Get("elements")
+					if !ok {
+						return newError("property not found: elements")
+					}
+					
+					// Make sure it's an array
+					arrayObj, ok := elements.(*object.Array)
+					if !ok {
+						return newError("elements is not an array: %T", elements)
+					}
+					
+					// Get and validate the index
+					idxObj := Eval(target.Index, env)
+					if isError(idxObj) {
+						return idxObj
+					}
+					
+					if idxObj.Type() != object.INTEGER_OBJ {
+						return newError("array index must be INTEGER, got %s", idxObj.Type())
+					}
+					
+					// Support negative indexing
+					idx := idxObj.(*object.Integer).Value
+					length := int64(len(arrayObj.Elements))
+					if idx < 0 {
+						idx = length + idx
+					}
+					
+					// Check bounds
+					if idx < 0 || idx >= length {
+						return newError("array index out of range: %d", idx)
+					}
+					
+					// Assign the value
+					arrayObj.Elements[idx] = value
+					return value
+				}
+			}
+
+			// Regular array indexing for arrays that are variables
+			idxObj := Eval(target.Index, env)
+			if isError(idxObj) {
+				return idxObj
+			}
+
+			// Handle array type
+			if leftObj.Type() == object.ARRAY_OBJ && idxObj.Type() == object.INTEGER_OBJ {
+				arrayObj := leftObj.(*object.Array)
+				idx := idxObj.(*object.Integer).Value
+				length := int64(len(arrayObj.Elements))
+
+				// Support negative indexing
+				if idx < 0 {
+					idx = length + idx
+				}
+
+				// Check if index is in range
+				if idx < 0 || idx >= length {
+					return newError("array index out of range: %d", idx)
+				}
+
+				// Assign to the array at the given index
+				arrayObj.Elements[idx] = value
+				return value
+			}
+			
+			return newError("invalid assignment target in tuple unpacking: %s[%s]", leftObj.Type(), idxObj.Type())
+
+		case *ast.DotExpression:
+			// Handle object property: obj.prop = value
+			leftObj := Eval(target.Left, env)
+			if isError(leftObj) {
+				return leftObj
+			}
+
+			instance, ok := leftObj.(*object.Instance)
+			if !ok {
+				return newError("invalid assignment target in tuple unpacking: %s", leftObj.Type())
+			}
+
+			// Assign to the instance field
+			instance.Env.Set(target.Right.Value, value)
+			return value
+
+		case *ast.TupleAssignment, *ast.TupleLiteral:
+			// Handle nested tuple unpacking: (a, (b, c)) = (1, (2, 3))
+			var elements []ast.Expression
+			if tupleAssign, ok := target.(*ast.TupleAssignment); ok {
+				elements = tupleAssign.Elements
+			} else if tupleLit, ok := target.(*ast.TupleLiteral); ok {
+				elements = tupleLit.Elements
+			}
+			
+			// Extract values from nested tuple/array
+			var nestedValues []object.Object
+			if tuple, ok := value.(*object.Tuple); ok {
+				nestedValues = tuple.Elements
+			} else if array, ok := value.(*object.Array); ok {
+				nestedValues = array.Elements
+			} else {
+				return newError("cannot unpack non-iterable %s into tuple", value.Type())
+			}
+			
+			return evalTupleUnpacking(elements, nestedValues, env)
+            
+		case *ast.CallExpression:
+			// For backward compatibility - this should not happen with the parser fix
+			// but keeping it as a fallback
+			return newAssignmentError("invalid assignment target in tuple unpacking", target, 
+				"CallExpressions are not valid assignment targets. Expected IndexExpression for array access.")
+
+		default:
+			return newAssignmentError("invalid assignment target in tuple unpacking", target, 
+				"Type %T is not a valid assignment target", target)
+		}
+	}
+
+	// Perform all assignments using the temporary values to avoid overwrites
+	for i, target := range targets {
+		result := assignToTarget(target, tempValues[i])
+		if isError(result) {
+			return result
+		}
+	}
+
+	// Python returns the right-hand side tuple
+	return &object.Tuple{Elements: values}
+}
+
 func evalIndexExpression(left, index object.Object) object.Object {
 	switch {
 	case left.Type() == object.TUPLE_OBJ:
@@ -836,7 +1179,14 @@ func evalHashIndexExpression(hash, index object.Object) object.Object {
 func evalArrayIndexExpression(array, index object.Object) object.Object {
 	arrayObject := array.(*object.Array)
 	idx := index.(*object.Integer).Value
-	maxIndex := int64(len(arrayObject.Elements) - 1)
+	length := int64(len(arrayObject.Elements))
+	maxIndex := length - 1
+	
+	// Handle negative indices (Python-style)
+	if idx < 0 {
+		idx = length + idx
+	}
+	
 	if idx < 0 || idx > maxIndex {
 		return NONE
 	}
@@ -1453,7 +1803,103 @@ func evalIfExpression(ie *ast.IfStatement, env *object.Environment) object.Objec
 }
 
 func newError(format string, a ...interface{}) *object.Error {
-	return object.NewError(fmt.Sprintf(format, a...))
+	// Create the error with the formatted message
+	errorObj := object.NewError(fmt.Sprintf(format, a...))
+	
+	// Add the current call stack to the error
+	if ctx != nil {
+		for _, frame := range ctx.callStack {
+			errorObj.AddStackEntry(frame.position, frame.funcName)
+		}
+	}
+	
+	return errorObj
+}
+
+// Enhanced error for assignment operations with detailed debugging
+func newAssignmentError(format string, node ast.Node, a ...interface{}) *object.Error {
+	// Create the basic error
+	errorObj := object.NewError(fmt.Sprintf(format, a...))
+	
+	// Add node details to provide more context
+	var details string
+	if node != nil {
+		details = fmt.Sprintf("\nAssignment target type: %T", node)
+		
+		// Add position information if available
+		if node.TokenLiteral() != "" {
+			details += fmt.Sprintf("\nToken: %s", node.TokenLiteral())
+		}
+		
+		// Add specific type details based on the node type
+		switch n := node.(type) {
+		case *ast.CallExpression:
+			details += fmt.Sprintf("\nFunction: %T", n.Function)
+			details += fmt.Sprintf("\nArguments count: %d", len(n.Arguments))
+			
+			// Detailed analysis of the call expression
+			if n.Function != nil {
+				details += fmt.Sprintf("\nFunction type: %T", n.Function)
+				details += fmt.Sprintf("\nFunction literal: %s", n.Function.TokenLiteral())
+				
+				// If the function is a dot expression, provide more information
+				if dotExpr, ok := n.Function.(*ast.DotExpression); ok {
+					details += fmt.Sprintf("\nDot expression - left: %T, right: %s", 
+						dotExpr.Left, dotExpr.Right.Value)
+				}
+			}
+			
+			// Check arguments
+			if len(n.Arguments) > 0 {
+				argTypes := make([]string, len(n.Arguments))
+				for i, arg := range n.Arguments {
+					argTypes[i] = fmt.Sprintf("%T", arg)
+				}
+				details += fmt.Sprintf("\nArgument types: %s", strings.Join(argTypes, ", "))
+			}
+			
+		case *ast.IndexExpression:
+			details += fmt.Sprintf("\nLeft: %T", n.Left)
+			details += fmt.Sprintf("\nIndex: %T", n.Index)
+			
+			if n.Left != nil {
+				details += fmt.Sprintf("\nLeft literal: %s", n.Left.TokenLiteral())
+			}
+			if n.Index != nil {
+				details += fmt.Sprintf("\nIndex literal: %s", n.Index.TokenLiteral())
+			}
+			
+		case *ast.TupleLiteral:
+			details += fmt.Sprintf("\nElements count: %d", len(n.Elements))
+			elemTypes := make([]string, len(n.Elements))
+			for i, elem := range n.Elements {
+				elemTypes[i] = fmt.Sprintf("%T", elem)
+			}
+			details += fmt.Sprintf("\nElement types: %s", strings.Join(elemTypes, ", "))
+			
+			// Detailed analysis of tuple elements
+			for i, elem := range n.Elements {
+				details += fmt.Sprintf("\nElement[%d] type: %T", i, elem)
+				if elem != nil {
+					details += fmt.Sprintf(", literal: %s", elem.TokenLiteral())
+				}
+			}
+		}
+		
+		errorObj.Message += details
+	}
+	
+	// Add call stack
+	if ctx != nil {
+		for _, frame := range ctx.callStack {
+			errorObj.AddStackEntry(frame.position, frame.funcName)
+		}
+	}
+	
+	// Add a note about the available workaround
+	errorObj.Message += "\n\nWORKAROUND: Try using individual assignments with a temporary variable instead of tuple unpacking in loops."
+	
+	return errorObj
 }
 
 func isError(obj object.Object) bool {

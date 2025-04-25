@@ -239,6 +239,27 @@ func (tl *TupleLiteral) String() string {
 	return out.String()
 }
 
+// TupleAssignment represents a tuple assignment target (left-hand side of an assignment)
+// such as (a, b) = (1, 2) or (arr.elements[i], arr.elements[j]) = (...)
+type TupleAssignment struct {
+	Token    token.Token  // The '(' token
+	Elements []Expression // Elements to assign to
+}
+
+func (ta *TupleAssignment) expressionNode()      {}
+func (ta *TupleAssignment) TokenLiteral() string { return ta.Token.Literal }
+func (ta *TupleAssignment) String() string {
+	var out bytes.Buffer
+	elements := []string{}
+	for _, el := range ta.Elements {
+		elements = append(elements, el.String())
+	}
+	out.WriteString("(")
+	out.WriteString(strings.Join(elements, ", "))
+	out.WriteString(")")
+	return out.String()
+}
+
 type DotExpression struct {
 	Token token.Token // The '.' token
 	Left  Expression  // The object being accessed

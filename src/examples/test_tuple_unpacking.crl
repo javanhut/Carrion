@@ -1,0 +1,65 @@
+// Test tuple unpacking in direct vs loop contexts
+grim Array:
+    init(elements=[]):
+        self.elements = elements
+    
+    spell len():
+        return len(self.elements)
+
+    spell print():
+        print(self.elements)
+    
+    spell test_direct_swap():
+        // This should work - direct assignment
+        print("Before direct swap:")
+        self.print()
+        (self.elements[0], self.elements[1]) = (self.elements[1], self.elements[0])
+        print("After direct swap:")
+        self.print()
+    
+    spell test_loop_swap():
+        // This fails with the error
+        print("Before loop swap:")
+        self.print()
+        n = self.len()
+        for j in range(0, n-1):
+            if self.elements[j] > self.elements[j+1]:
+                print(f"Swapping {self.elements[j]} and {self.elements[j+1]}")
+                (self.elements[j], self.elements[j+1]) = (self.elements[j+1], self.elements[j])
+        print("After loop swap:")
+        self.print()
+    
+    spell test_loop_swap_workaround():
+        // Workaround using a temp variable
+        print("Before loop swap workaround:")
+        self.print()
+        n = self.len()
+        for j in range(0, n-1):
+            if self.elements[j] > self.elements[j+1]:
+                print(f"Swapping {self.elements[j]} and {self.elements[j+1]}")
+                // Use a temp variable instead of tuple unpacking
+                temp = self.elements[j]
+                self.elements[j] = self.elements[j+1]
+                self.elements[j+1] = temp
+        print("After loop swap workaround:")
+        self.print()
+
+// Test with a simple array
+print("Creating test array")
+test_array = Array([3, 1, 4, 2])
+test_array.print()
+
+// Test direct swap
+print("\nTesting direct swap")
+test_array.test_direct_swap()
+
+// Test loop swap - this will fail
+attempt:
+    print("\nTesting loop swap (will likely fail)")
+    test_array.test_loop_swap()
+ensnare "invalid assignment target":
+    print("Loop swap failed as expected")
+
+// Test workaround
+print("\nTesting loop swap workaround")
+test_array.test_loop_swap_workaround()

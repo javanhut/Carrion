@@ -1,0 +1,13 @@
+// Test swapping array elements with tuple unpacking
+
+// Create an Array instance
+arr = Array([5, 3, 8, 1, 4, 2])
+print("Original array:")
+arr.print()
+
+// Try a single swap directly with array elements
+print("\nTesting array elements swap...")
+(arr.elements[0], arr.elements[1]) = (arr.elements[1], arr.elements[0])
+
+print("After swap:")
+arr.print()

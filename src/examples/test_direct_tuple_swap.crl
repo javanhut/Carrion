@@ -1,0 +1,25 @@
+// Test direct tuple unpacking for array elements
+
+// Create array instance
+arr = Array([5, 3, 8, 1, 4, 2])
+print("Original array:")
+arr.print()
+
+// Test direct swap
+print("\nTesting direct tuple swap:")
+(arr.elements[0], arr.elements[1]) = (arr.elements[1], arr.elements[0])
+print("After direct swap:")
+arr.print()
+
+// Now try a manual bubble sort algorithm with tuple unpacking
+print("\nImplementing manual bubble sort:")
+n = arr.len()
+for i in range(n):
+    for j in range(0, n-i-1):
+        if arr.elements[j] > arr.elements[j+1]:
+            // Try to use tuple unpacking for swapping
+            print("  Swapping elements:", arr.elements[j], "and", arr.elements[j+1])
+            (arr.elements[j], arr.elements[j+1]) = (arr.elements[j+1], arr.elements[j])
+
+print("Sorted array:")
+arr.print()

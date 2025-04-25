@@ -21,9 +21,10 @@ const (
 	SUM
 	PRODUCT
 	PREFIX
-	CALL
+	CALL        // Call with parentheses: func()
 	POSTFIX
-	INDEX
+	INDEX       // Array indexing: array[index]
+	DOT         // Attribute access: obj.attr - Highest precedence to fix arr.elements[j] issue
 )
 
 var precedences = map[token.TokenType]int{
@@ -47,7 +48,7 @@ var precedences = map[token.TokenType]int{
 	token.PLUS_INCREMENT:  POSTFIX,
 	token.MINUS_DECREMENT: POSTFIX,
 	token.LPAREN:          CALL,
-	token.DOT:             CALL,
+	token.DOT:             DOT,   // Use DOT precedence for attribute access
 	token.LBRACK:          INDEX,
 	token.OR:              LOGICAL_OR,
 	token.AND:             LOGICAL_AND,
@@ -156,8 +157,10 @@ func New(l *lexer.Lexer, fileName ...string) *Parser {
 	p.registerInfix(token.DECREMENT, p.parseInfixExpression)
 	p.registerInfix(token.MULTASSGN, p.parseInfixExpression)
 	p.registerInfix(token.DIVASSGN, p.parseInfixExpression)
-	p.registerInfix(token.LBRACK, p.parseIndexExpression)
+	// Fix for arr.elements[j] issue - make sure DOT has higher precedence than LBRACK
+	// This ensures DotExpression.Right is properly parsed as an element and not a function
 	p.registerInfix(token.DOT, p.parseDotExpression)
+	p.registerInfix(token.LBRACK, p.parseIndexExpression)
 	p.registerInfix(token.COMMA, p.parseCommaExpression)
 	p.registerInfix(token.LSHIFT, p.parseInfixExpression)
 	p.registerInfix(token.RSHIFT, p.parseInfixExpression)
@@ -648,20 +651,26 @@ func (p *Parser) parseSelf() ast.Expression {
 }
 
 func (p *Parser) parseDotExpression(left ast.Expression) ast.Expression {
+	// Create a DotExpression for attribute access (obj.attr)
 	exp := &ast.DotExpression{
-		Token: p.currToken,
-		Left:  left,
+		Token: p.currToken, // The '.' token
+		Left:  left,        // The object being accessed
 	}
 
+	// Next token must be an identifier (the attribute name)
 	if !p.expectPeek(token.IDENT) {
 		return nil
 	}
 
+	// Set the right side to be the attribute identifier
 	exp.Right = &ast.Identifier{Token: p.currToken, Value: p.currToken.Literal}
+	
+	// Return the DotExpression which can be used as the left side of an IndexExpression later
 	return exp
 }
 
 func (p *Parser) parseParenExpression() ast.Expression {
+	// Check if this is an empty tuple
 	if p.peekTokenIs(token.RPAREN) {
 		p.nextToken()
 		return &ast.TupleLiteral{
@@ -676,8 +685,8 @@ func (p *Parser) parseParenExpression() ast.Expression {
 		return nil
 	}
 
+	// If we encounter a comma, this is a tuple literal
 	if p.peekTokenIs(token.COMMA) {
-
 		elements := []ast.Expression{firstExpr}
 
 		for p.peekTokenIs(token.COMMA) {
@@ -764,7 +773,11 @@ func (p *Parser) parseFloatLiteral() ast.Expression {
 }
 
 func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
-	exp := &ast.IndexExpression{Token: p.currToken, Left: left}
+	// Create an IndexExpression for array indexing (arr[idx]) or property indexing (obj.prop[idx])
+	exp := &ast.IndexExpression{
+		Token: p.currToken,  // The '[' token 
+		Left:  left,         // The array/container being indexed (could be a DotExpression)
+	}
 	p.nextToken()
 	
 	// Check if this is a slice operation with the colon syntax (arr[start:end])
@@ -971,6 +984,26 @@ func (p *Parser) parseStatement() ast.Statement {
 func (p *Parser) finishAssignmentStatement(leftExpr ast.Expression) ast.Statement {
 	var typeHint ast.Expression = nil
 
+	// Handle tuple unpacking on the left-hand side of assignment
+	// Convert CallExpression to TupleAssignment
+	if callExpr, ok := leftExpr.(*ast.CallExpression); ok {
+		// This is likely a tuple assignment that was incorrectly parsed as a function call
+		// Convert to TupleAssignment
+		tupleAssignment := &ast.TupleAssignment{
+			Token:    callExpr.Token,
+			Elements: callExpr.Arguments,
+		}
+		leftExpr = tupleAssignment
+	} else if tupleLit, ok := leftExpr.(*ast.TupleLiteral); ok {
+		// If it's already a TupleLiteral, convert to TupleAssignment
+		tupleAssignment := &ast.TupleAssignment{
+			Token:    tupleLit.Token,
+			Elements: tupleLit.Elements,
+		}
+		leftExpr = tupleAssignment
+	}
+	
+	// Process type hint for simple identifiers
 	if _, ok := leftExpr.(*ast.Identifier); ok {
 		if p.peekTokenIs(token.COLON) {
 			p.nextToken()
@@ -998,11 +1031,74 @@ func (p *Parser) finishAssignmentStatement(leftExpr ast.Expression) ast.Statemen
 	return stmt
 }
 
+// Helper function to check if an expression is a valid assignment target
+func (p *Parser) isValidAssignmentTarget(expr ast.Expression) bool {
+	switch expr := expr.(type) {
+	case *ast.Identifier:
+		// Simple variable
+		return true
+	case *ast.IndexExpression:
+		// Array indexing: arr[i]
+		return true
+	case *ast.DotExpression:
+		// Object property: obj.prop
+		return true
+	case *ast.CallExpression:
+		// Method return value: obj.method()
+		// This is required for expressions like arr.elements[0]
+		return p.isValidAssignmentTarget(expr.Function)
+	case *ast.TupleLiteral:
+		// Tuple unpacking: (a, b, c)
+		for _, elem := range expr.Elements {
+			if !p.isValidAssignmentTarget(elem) {
+				return false
+			}
+		}
+		return true
+	case *ast.TupleAssignment:
+		// Tuple assignment: (a, b, c) = ...
+		for _, elem := range expr.Elements {
+			if !p.isValidAssignmentTarget(elem) {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
 func (p *Parser) parseAssignmentStatement() *ast.AssignStatement {
 	stmt := &ast.AssignStatement{Token: p.currToken}
 
-	if p.currToken.Type == token.IDENT || p.currToken.Type == token.SELF {
-		stmt.Name = p.parseExpression(LOWEST)
+	// Parse the left-hand side expression
+	if p.currToken.Type == token.IDENT || p.currToken.Type == token.SELF || p.currToken.Type == token.LPAREN {
+		leftExpr := p.parseExpression(LOWEST)
+		
+		// Special handling for tuple assignments
+		if callExpr, ok := leftExpr.(*ast.CallExpression); ok {
+			// This might be a tuple assignment incorrectly parsed as function call
+			tupleAssignment := &ast.TupleAssignment{
+				Token:    callExpr.Token,
+				Elements: callExpr.Arguments,
+			}
+			stmt.Name = tupleAssignment
+		} else if tupleLit, ok := leftExpr.(*ast.TupleLiteral); ok {
+			// Convert TupleLiteral to TupleAssignment for assignment context
+			tupleAssignment := &ast.TupleAssignment{
+				Token:    tupleLit.Token,
+				Elements: tupleLit.Elements,
+			}
+			stmt.Name = tupleAssignment
+		} else {
+			stmt.Name = leftExpr
+		}
+		
+		// Check if the left-hand side is a valid assignment target
+		if !p.isValidAssignmentTarget(stmt.Name) {
+			p.errors = append(p.errors, fmt.Sprintf("Invalid assignment target: %T", stmt.Name))
+			return nil
+		}
 	} else {
 		p.errors = append(p.errors, "Invalid assignment target")
 		return nil

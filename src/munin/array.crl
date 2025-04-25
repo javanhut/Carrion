@@ -32,3 +32,15 @@ grim Array:
             // Fall back to handling it as a regular array
             return Array(self.elements + other)
 
+    spell sort(type="bubble"):
+        if type == "bubble":
+            // Bubble sort with pythonic tuple unpacking for swapping
+            n = self.len()
+            for i in range(n):
+                // For each element, do one pass
+                for j in range(0, n-i-1):
+                    // Compare adjacent elements
+                    if self.elements[j] > self.elements[j+1]:
+                        // Swap elements using tuple unpacking (Python style)
+                        (self.elements[j], self.elements[j+1]) = (self.elements[j+1], self.elements[j])
+

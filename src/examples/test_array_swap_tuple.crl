@@ -1,0 +1,31 @@
+// Test tuple unpacking with array elements for swapping
+
+// Create an array with test data
+arr = [5, 3, 8, 1, 4, 2]
+print("Original array:", arr)
+
+// Regular variables tuple assignment
+print("\nRegular tuple assignment:")
+(a, b) = (1, 2)
+print("a =", a, ", b =", b)
+
+// Array elements tuple assignment - swapping with direct indexing
+print("\nArray elements tuple assignment:")
+print("Before swap:", arr)
+(arr[0], arr[1]) = (arr[1], arr[0])
+print("After swap:", arr)
+
+// Swap with negative indices
+print("\nSwap with negative indices:")
+(arr[0], arr[-1]) = (arr[-1], arr[0])
+print("After swap first and last:", arr)
+
+// Implement a bubble sort with tuple unpacking
+print("\nImplementing bubble sort with tuple unpacking:")
+n = len(arr)
+for i in range(n):
+    for j in range(0, n-i-1):
+        if arr[j] > arr[j+1]:
+            (arr[j], arr[j+1]) = (arr[j+1], arr[j])
+
+print("Sorted array:", arr)

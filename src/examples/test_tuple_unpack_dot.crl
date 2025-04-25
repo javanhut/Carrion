@@ -1,0 +1,27 @@
+// Test tuple unpacking with dot expressions
+
+// Create an Array instance
+arr = Array([5, 3, 8, 1, 4, 2])
+print("Original array:")
+arr.print()
+
+// Test direct element swapping with dot expression
+print("\nDirect element swap:")
+(arr.elements[0], arr.elements[1]) = (arr.elements[1], arr.elements[0])
+print("After swap:")
+arr.print()
+
+// Try a simple loop just to print values
+print("\nSimple loop test:")
+for j in range(2):
+    print("Element", j, "=", arr.elements[j])
+
+// Simple manual loop with swapping
+print("\nManual loop with swapping:")
+for j in range(2):
+    print("Before swap at position", j, ":", arr.elements[j], arr.elements[j+1])
+    (arr.elements[j], arr.elements[j+1]) = (arr.elements[j+1], arr.elements[j])
+    print("After swap:", arr.elements[j], arr.elements[j+1])
+
+print("Final array:")
+arr.print()

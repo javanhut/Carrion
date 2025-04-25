@@ -1,0 +1,16 @@
+// Test the Array.sort method with tuple unpacking
+
+// Create an Array instance
+arr = Array([5, 3, 8, 1, 4, 2])
+
+// Print the original array
+print("Original array:")
+arr.print()
+
+// Sort the array
+print("\nSorting array:")
+arr.sort()
+
+// Print the sorted array
+print("Sorted array:")
+arr.print()

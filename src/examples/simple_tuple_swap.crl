@@ -1,0 +1,22 @@
+// Simplest possible tuple swap test
+
+// Create an array
+arr = [5, 3, 8, 1, 4, 2]
+print("Original array:", arr)
+
+// Perform a single swap with the simplest syntax
+i = 0
+j = 1
+
+// Manual swap without tuple unpacking
+print("\nManual swap without tuple unpacking:")
+temp = arr[i]
+arr[i] = arr[j]
+arr[j] = temp
+print("After manual swap:", arr)
+
+// Try a single tuple swap
+print("\nTuple unpacking attempt:")
+// This line will fail, but with a better error message
+(arr[0], arr[1]) = (arr[1], arr[0])
+print("After tuple swap:", arr)

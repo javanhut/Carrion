@@ -1,0 +1,23 @@
+// Test Array features with tuple unpacking and negative indexing
+
+// Create a test array
+arr = Array([5, 3, 8, 1, 4, 2])
+print("Original array:")
+arr.print()
+
+// Test negative indexing
+print("\nAccessing with negative indices:")
+print("arr[-1] =", arr.elements[-1]) // Last element
+print("arr[-2] =", arr.elements[-2]) // Second to last element
+
+// Test tuple unpacking swap
+print("\nTuple unpacking swap:")
+(arr.elements[0], arr.elements[-1]) = (arr.elements[-1], arr.elements[0])
+print("After swapping first and last elements:")
+arr.print()
+
+// Test sorting with tuple unpacking (bubble sort)
+print("\nSorting with tuple unpacking:")
+arr.sort()
+print("Sorted array:")
+arr.print()

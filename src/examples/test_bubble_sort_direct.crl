@@ -1,0 +1,18 @@
+// Test implementing bubble sort directly with tuple unpacking on array elements
+
+// Create an Array instance
+arr = Array([5, 3, 8, 1, 4, 2])
+print("Original array:")
+arr.print()
+
+// Manual bubble sort implementation
+print("\nImplementing bubble sort:")
+n = arr.len()
+for i in range(n):
+    for j in range(0, n-i-1):
+        if arr.elements[j] > arr.elements[j+1]:
+            // Swap elements using tuple unpacking
+            (arr.elements[j], arr.elements[j+1]) = (arr.elements[j+1], arr.elements[j])
+
+print("Sorted array:")
+arr.print()
