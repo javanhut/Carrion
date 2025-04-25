@@ -1,11 +1,13 @@
 // ignore me im a useless comment 
-x = 3
+x = 4
 if x < 1:
     x++
     print(str(x) + "\n")
-otherwise x >= 2:
+otherwise x > 2 and x <= 3:
     x--
     print(str(x) + "\n")
+otherwise x == 4:
+    print(f"Value is {x}")
 else:
     print(str(x) + "\n")
 

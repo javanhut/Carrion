@@ -1,0 +1,41 @@
+// Simple test of Array methods
+print("Testing Array methods with improved error handling")
+
+// Create test array
+unsorted_array = Array([5, 2, 9, 1, 7, 3, 8, 6, 4])
+print("Original array: " + unsorted_array.to_string())
+
+// Test sort
+sorted_array = Array(unsorted_array.elements)
+print("\nBubble Sort:")
+print("Before: " + sorted_array.to_string())
+sorted_array.sort()
+print("After: " + sorted_array.to_string())
+
+// Test reverse
+array_to_reverse = Array([1, 2, 3, 4, 5])
+print("\nReverse:")
+print("Before: " + array_to_reverse.to_string())
+array_to_reverse.reverse()
+print("After: " + array_to_reverse.to_string())
+
+// Test binary search
+search_array = Array([1, 2, 3, 4, 5, 6, 7, 8, 9])
+print("\nBinary Search:")
+print("Array: " + search_array.to_string())
+
+target = 5
+index = search_array.binary_search(target)
+print(f"Search for {target}: found at index {index}")
+
+target = 10
+index = search_array.binary_search(target)
+print(f"Search for {target}: found at index {index} (not found)")
+
+// Test binary search on unsorted array
+print("\nBinary Search on unsorted array:")
+print("Unsorted array: " + unsorted_array.to_string())
+index = unsorted_array.binary_search(3)
+print("Search for 3 in unsorted array: " + str(index) + " (may be unreliable)")
+
+print("\nAll tests completed successfully!")

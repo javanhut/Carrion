@@ -1,0 +1,30 @@
+// Test all array methods (basic functionality)
+
+// Create a test array
+test_array = Array([5, 2, 9, 1, 7, 3, 8, 6, 4])
+print("Original array:")
+test_array.print()
+
+// Test bubble sort (default)
+sorted_array = Array([5, 2, 9, 1, 7, 3, 8, 6, 4])
+print("\nAfter bubble sort (default):")
+sorted_array.sort()
+sorted_array.print()
+
+// Test reverse
+reversed_array = Array([1, 2, 3, 4, 5])
+print("\nAfter reverse:")
+reversed_array.reverse()
+reversed_array.print()
+
+// Test binary search
+search_array = Array([1, 2, 3, 4, 5, 6, 7, 8, 9])
+target = 5
+index = search_array.binary_search(target)
+print(f"\nBinary search for {target}: found at index {index}")
+
+target = 10
+index = search_array.binary_search(target)
+print(f"Binary search for {target}: found at index {index} (not found)")
+
+print("\nAll array tests completed successfully!")

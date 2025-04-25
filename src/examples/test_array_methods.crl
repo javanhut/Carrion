@@ -1,0 +1,78 @@
+// Comprehensive test of Array methods
+print("Testing Array methods with detailed error reporting")
+
+// Create test arrays
+print("\n=== Creating test arrays ===")
+empty_array = Array([])
+print("Empty array: " + empty_array.to_string())
+
+single_array = Array([42])
+print("Single element array: " + single_array.to_string())
+
+unsorted_array = Array([5, 2, 9, 1, 7, 3, 8, 6, 4])
+print("Unsorted array: " + unsorted_array.to_string())
+
+// Test array operations
+print("\n=== Basic operations ===")
+print("Length of array: " + str(unsorted_array.len()))
+
+print("\nAppending element 10...")
+unsorted_array.append(10)
+print("After append: " + unsorted_array.to_string())
+
+print("\nPopping last element...")
+popped = unsorted_array.pop()
+print("Popped element: " + str(popped))
+print("After pop: " + unsorted_array.to_string())
+
+// Test sorting
+print("\n=== Testing sort ===")
+bubble_array = Array(unsorted_array.elements)
+print("Before sort: " + bubble_array.to_string())
+bubble_array.sort()
+print("After sort: " + bubble_array.to_string())
+
+// Test merge sort
+print("\n=== Testing merge sort ===")
+merge_array = Array(unsorted_array.elements)
+print("Before merge sort: " + merge_array.to_string())
+merge_array.merge_sort()
+print("After merge sort: " + merge_array.to_string())
+
+// Test quick sort
+print("\n=== Testing quick sort ===")
+quick_array = Array(unsorted_array.elements)
+print("Before quick sort: " + quick_array.to_string())
+quick_array.quick_sort()
+print("After quick sort: " + quick_array.to_string())
+
+// Test reverse
+print("\n=== Testing reverse ===")
+array_to_reverse = Array([1, 2, 3, 4, 5])
+print("Before reverse: " + array_to_reverse.to_string())
+array_to_reverse.reverse()
+print("After reverse: " + array_to_reverse.to_string())
+
+// Test binary search
+print("\n=== Testing binary search ===")
+search_array = Array([1, 2, 3, 4, 5, 6, 7, 8, 9])
+print("Search array (sorted): " + search_array.to_string())
+
+// Search for existing element
+target = 5
+index = search_array.binary_search(target)
+print(f"Binary search for {target}: found at index {index}")
+
+// Search for non-existing element
+target = 10
+index = search_array.binary_search(target)
+print(f"Binary search for {target}: found at index {index} (expected -1 for not found)")
+
+// Test binary search on unsorted array (should show warning)
+print("\nTesting binary search on unsorted array:")
+print("Unsorted array: " + unsorted_array.to_string())
+target = 3
+index = unsorted_array.binary_search(target)
+print(f"Binary search for {target} in unsorted array: found at index {index} (result may be incorrect)")
+
+print("\n=== All array tests completed successfully ===")

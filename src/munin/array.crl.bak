@@ -1,0 +1,136 @@
+grim Array:
+    init(elements=[]):
+        self.elements = elements
+    
+    spell len():
+        return len(self.elements)
+
+    spell append(ele):
+        self.elements = self.elements + [ele]
+
+    spell print():
+        print(self.elements)
+    
+    spell to_string():
+        return str(self.elements)
+
+    spell pop():
+        length = self.len()
+        if length > 0:
+            popped_element = self.elements[length-1]
+            self.elements = self.elements[0:length-1]
+            return popped_element
+        else:
+            print(f"No elements are in Array")
+    
+    spell add(other):
+        // Check if other is an Array instance or regular array
+        attempt:
+            elements = other.elements
+            return Array(self.elements + elements)
+        ensnare "undefined property or method":
+            // Fall back to handling it as a regular array
+            return Array(self.elements + other)
+
+    spell sort(type="bubble"):
+        if type == "bubble":
+            // Bubble sort with pythonic tuple unpacking for swapping
+            n = self.len()
+            for i in range(n):
+                // For each element, do one pass
+                for j in range(0,n-i-1):
+                    // Compare adjacent elements
+                    if self.elements[j] > self.elements[j+1]:
+                        // Swap elements using tuple unpacking (Python style)
+                        (self.elements[j],self.elements[j+1]) = (self.elements[j+1],self.elements[j])
+        otherwise type == "merge":
+            self.elements = self._merge_sort(self.elements)
+        otherwise type == "quick":
+            self._quick_sort(self.elements,0,self.len()-1)
+            
+    spell _merge_sort(arr):
+        if len(arr) <= 1:
+            return arr
+            
+        // Split array in half
+        mid = len(arr) // 2
+        left = self._merge_sort(arr[0:mid])
+        right = self._merge_sort(arr[mid:len(arr)])
+        
+        // Merge the two halves
+        return self._merge(left,right)
+    
+    spell _merge(left,right):
+        result = []
+        i = 0
+        j = 0
+        
+        // Compare elements from both lists and add smaller one to result
+        while i < len(left) and j < len(right):
+            if left[i] <= right[j]:
+                result.append(left[i])
+                i += 1
+            else:
+                result.append(right[j])
+                j += 1
+        
+        // Add remaining elements
+        while i < len(left):
+            result.append(left[i])
+            i += 1
+            
+        while j < len(right):
+            result.append(right[j])
+            j += 1
+            
+        return result
+    
+    spell _quick_sort(arr,low,high):
+        if low < high:
+            // Find partition index
+            pi = self._partition(arr,low,high)
+            
+            // Sort elements before and after partition
+            self._quick_sort(arr,low,pi-1)
+            self._quick_sort(arr,pi+1,high)
+    
+    spell _partition(arr,low,high):
+        pivot = arr[high]
+        i = low - 1
+        
+        for j in range(low,high):
+            if arr[j] <= pivot:
+                i += 1
+                (arr[i],arr[j]) = (arr[j],arr[i])
+        
+        (arr[i+1],arr[high]) = (arr[high],arr[i+1])
+        return i+1
+        
+    spell reverse():
+        n = self.len()
+        for i in range(n // 2):
+            (self.elements[i],self.elements[n-i-1]) = (self.elements[n-i-1],self.elements[i])
+        return self
+            
+    spell binary_search(target):
+        // Binary search for target value, returns index if found or -1 if not found
+        // Note: Array must be sorted first for binary search to work correctly
+        left = 0
+        right = self.len() - 1
+        
+        while left <= right:
+            mid = (left + right) // 2
+            
+            // Check if target is at mid
+            if self.elements[mid] == target:
+                return mid
+            otherwise self.elements[mid] < target:
+                // If target is greater, ignore left half
+                left = mid + 1
+            otherwise:
+                // If target is smaller, ignore right half
+                right = mid - 1
+                
+        // Element not present
+        return -1
+

@@ -1,0 +1,29 @@
+// Final test of Array methods - only testing sort and binary_search
+print("Testing sort and binary search methods")
+
+// Create unsorted array
+unsorted = Array([5, 2, 9, 1, 7, 3, 8, 6, 4])
+print("Original unsorted array:")
+unsorted.print()
+
+// Sort the array
+unsorted.sort()
+print("\nAfter sorting:")
+unsorted.print()
+
+// Test binary search
+sorted = Array([1, 2, 3, 4, 5, 6, 7, 8, 9])
+print("\nSearching in sorted array:")
+sorted.print()
+
+// Search for element that exists
+target = 5
+index = sorted.binary_search(target)
+print(f"Search for {target}: found at index {index}")
+
+// Search for element that doesn't exist
+target = 10
+index = sorted.binary_search(target)
+print(f"Search for {target}: returned {index} (not found)")
+
+print("\nTest completed successfully!")

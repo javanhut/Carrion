@@ -1,0 +1,28 @@
+// Create an unsorted test array
+test_array = Array([5, 2, 9, 1, 7, 3, 8, 6, 4])
+
+// Test original array
+print("Original array:")
+test_array.print()
+
+// Test just the bubble sort first to make sure it works
+bubble_sorted = Array([5, 2, 9, 1, 7, 3, 8, 6, 4])
+bubble_sorted.sort()
+print("\nAfter bubble sort:")
+bubble_sorted.print()
+
+// Test reverse method
+reversed_array = Array([1, 2, 3, 4, 5])
+reversed_array.reverse()
+print("\nAfter reverse:")
+reversed_array.print()
+
+// Test binary search
+search_array = Array([1, 2, 3, 4, 5, 6, 7, 8, 9])
+target = 5
+index = search_array.binary_search(target)
+print(f"\nBinary search for {target}: found at index {index}")
+
+target = 10
+index = search_array.binary_search(target)
+print(f"Binary search for {target}: {index} (not found)")

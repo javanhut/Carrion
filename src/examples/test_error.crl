@@ -1,0 +1,19 @@
+// This file contains syntax errors to test error handling
+
+// Missing closing parenthesis
+x = (1 + 2 * 3
+
+// Variable used before declaration
+y = z + 5
+
+// Incorrect keyword
+iff x > 10:
+    print("x is greater than 10")
+
+// Missing colon after if statement
+if x < 5
+    print("x is less than 5")
+
+// Invalid function definition
+spell test_function()
+    return 42

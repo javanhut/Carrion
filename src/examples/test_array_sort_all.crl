@@ -1,0 +1,46 @@
+// Test all array sorting methods
+
+// Create a test array
+test_data = [5, 2, 9, 1, 7, 3, 8, 6, 4]
+print("Original data: " + str(test_data))
+
+// Test bubble sort
+bubble_array = Array(test_data)
+print("\nBubble Sort:")
+print("Before: " + bubble_array.to_string())
+bubble_array.sort(algorithm="bubble")
+print("After:  " + bubble_array.to_string())
+
+// Test merge sort
+merge_array = Array(test_data)
+print("\nMerge Sort:")
+print("Before: " + merge_array.to_string())
+merge_array.sort(algorithm="merge")
+print("After:  " + merge_array.to_string())
+
+// Test quick sort
+quick_array = Array(test_data)
+print("\nQuick Sort:")
+print("Before: " + quick_array.to_string())
+quick_array.sort(algorithm="quick")
+print("After:  " + quick_array.to_string())
+
+// Test reverse
+reversed_array = Array([1, 2, 3, 4, 5])
+print("\nReverse Method:")
+print("Before: " + reversed_array.to_string())
+reversed_array.reverse()
+print("After:  " + reversed_array.to_string())
+
+// Test binary search
+search_array = Array([1, 2, 3, 4, 5, 6, 7, 8, 9])
+print("\nBinary Search:")
+target = 5
+index = search_array.binary_search(target)
+print(f"Search for {target}: found at index {index}")
+
+target = 10
+index = search_array.binary_search(target)
+print(f"Search for {target}: found at index {index} (not found)")
+
+print("\nAll array methods tested successfully!")

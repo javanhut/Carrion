@@ -1,0 +1,14 @@
+// Test just the reverse method
+print("Testing Array reverse method")
+
+// Create test array
+array = Array([1, 2, 3, 4, 5])
+print("Original array:")
+array.print()
+
+// Reverse the array
+array.reverse()
+print("\nAfter reverse:")
+array.print()
+
+print("\nTest completed!")

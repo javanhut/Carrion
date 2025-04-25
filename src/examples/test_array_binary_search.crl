@@ -1,0 +1,19 @@
+// Test binary search functionality
+search_array = Array([1, 2, 3, 4, 5, 6, 7, 8, 9])
+print("Original sorted array:")
+search_array.print()
+
+// Test binary search for existing value
+target = 5
+index = search_array.binary_search(target)
+print(f"\nBinary search for {target}: found at index {index}")
+
+// Test binary search for non-existing value
+target = 10
+index = search_array.binary_search(target)
+print(f"\nBinary search for {target}: found at index {index} (should be -1)")
+
+// Test reverse
+search_array.reverse()
+print("\nAfter reversing:")
+search_array.print()
