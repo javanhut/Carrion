@@ -22,4 +22,13 @@ grim Array:
             return popped_element
         else:
             print(f"No elements are in Array")
+    
+    spell add(other):
+        // Check if other is an Array instance or regular array
+        attempt:
+            elements = other.elements
+            return Array(self.elements + elements)
+        ensnare "undefined property or method":
+            // Fall back to handling it as a regular array
+            return Array(self.elements + other)
 

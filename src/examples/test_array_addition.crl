@@ -5,11 +5,30 @@ b = [4, 5, 6]
 print("Array a: " + str(a))
 print("Array b: " + str(b))
 
-// This will fail because array addition isn't implemented yet
-attempt:
-    c = a + b
-    print("Array a + b: " + str(c))
-ensnare "unknown operator or type mismatch":
-    print("Cannot add arrays yet!")
-resolve:
-    print("Test complete")
+// Regular array addition
+c = a + b
+print("Array a + b: " + str(c))
+
+// Now test Array instance addition
+array_a = Array(a)
+array_b = Array(b)
+
+print("Array instance a: " + array_a.to_string())
+print("Array instance b: " + array_b.to_string())
+
+// Test Array instance addition
+array_c = array_a + array_b
+print("Array instance a + b: " + array_c.to_string())
+
+// Test nested array instances
+nested_a = Array([Array([1, 2]), Array([3, 4])])
+nested_b = Array([Array([5, 6]), Array([7, 8])])
+print("Nested array a: " + nested_a.to_string())
+print("Nested array b: " + nested_b.to_string())
+
+// Test nested array addition
+nested_c = nested_a + nested_b
+print("Nested array a + b: " + nested_c.to_string())
+
+// Let's wrap up
+print("Array addition tests complete!")

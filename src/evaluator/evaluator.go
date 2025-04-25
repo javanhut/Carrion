@@ -1055,6 +1055,39 @@ func evalInfixExpression(
 		return evalStringInfixExpression(operator, left, right)
 	case left.Type() == object.ARRAY_OBJ && right.Type() == object.ARRAY_OBJ:
 		return evalArrayInfixExpression(operator, left, right)
+	case left.Type() == object.INSTANCE_OBJ && right.Type() == object.INSTANCE_OBJ:
+		// Handle operations between instances
+		leftInst := left.(*object.Instance)
+		rightInst := right.(*object.Instance)
+		
+		// Add support for Array instance + Array instance
+		if leftInst.Grimoire.Name == "Array" && rightInst.Grimoire.Name == "Array" && operator == "+" {
+			// Get elements from instances
+			leftElements, leftOk := leftInst.Env.Get("elements")
+			rightElements, rightOk := rightInst.Env.Get("elements")
+			
+			if !leftOk || !rightOk {
+				return newError("Array instance missing elements field")
+			}
+			
+			// Combine the arrays
+			resultArray := evalInfixExpression(operator, leftElements, rightElements)
+			if isError(resultArray) {
+				return resultArray
+			}
+			
+			// Create a new Array instance with the resulting array
+			arrayGrimoire := leftInst.Grimoire // Use the same grimoire from left instance
+			newInstance := &object.Instance{
+				Grimoire: arrayGrimoire,
+				Env:      object.NewEnclosedEnvironment(leftInst.Env.GetOuter()),
+			}
+			newInstance.Env.Set("elements", resultArray)
+			
+			return newInstance
+		}
+		return newError("unknown operator or unsupported instance operation: %s %s %s", 
+			leftInst.Grimoire.Name, operator, rightInst.Grimoire.Name)
 	case left == object.NONE && right == object.NONE:
 		return nativeBoolToBooleanObject(operator == "==")
 	case left == object.NONE || right == object.NONE:
