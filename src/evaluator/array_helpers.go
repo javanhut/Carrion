@@ -18,10 +18,11 @@ func getArrayFromObject(obj object.Object) *object.Array {
 				return nil
 			}
 			
-			if array, ok := elementsObj.(*object.Array); ok {
-				return array
-			} else if instance, ok := elementsObj.(*object.Instance); ok {
-				return getArrayFromObject(instance)
+			switch elementsObj := elementsObj.(type) {
+			case *object.Array:
+				return elementsObj
+			case *object.Instance:
+				return getArrayFromObject(elementsObj)
 			}
 		}
 	}
