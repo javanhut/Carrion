@@ -7,6 +7,7 @@ import (
 
 	"github.com/javanhut/Carrion/src/ast"
 	"github.com/javanhut/Carrion/src/lexer"
+	"github.com/javanhut/Carrion/src/object"
 	"github.com/javanhut/Carrion/src/token"
 )
 
@@ -71,12 +72,14 @@ type Parser struct {
 	l                 *lexer.Lexer
 	currToken         token.Token
 	peekToken         token.Token
-	errors            []string
+	errors            []*object.ParseError // Enhanced error type
+	parserErrors      []string             // For backward compatibility
 	contextStack      []string
 	prefixParseFns    map[token.TokenType]prefixParseFn
 	infixParseFns     map[token.TokenType]infixParseFn
 	postfixParseFns   map[token.TokenType]postfixParseFn
 	statementParseFns map[token.TokenType]func() ast.Statement
+	source            string // Source code for context in errors
 }
 
 func (p *Parser) isInsideGrimoire() bool {
@@ -87,7 +90,12 @@ func (p *Parser) isInsideGrimoire() bool {
 }
 
 func New(l *lexer.Lexer, fileName ...string) *Parser {
-	p := &Parser{l: l, errors: []string{}}
+	p := &Parser{
+		l:            l,
+		errors:       []*object.ParseError{},
+		parserErrors: []string{},
+		source:       l.Input, // Store the source for error context
+	}
 	p.nextToken()
 	p.nextToken()
 
@@ -274,7 +282,9 @@ func (p *Parser) parseFStringLiteral() ast.Expression {
 
 			end := findMatchingBrace(raw, i+1)
 			if end < 0 {
-				p.errors = append(p.errors, "Unclosed brace in f-string")
+				parseErr := object.NewParseError("Unclosed brace in f-string", p.currToken.Position).
+					WithContext(p.getContext(p.currToken.Position, 2))
+				p.errors = append(p.errors, parseErr)
 				return fslit
 			}
 			exprStr := raw[i+1 : end]
@@ -371,11 +381,17 @@ func (p *Parser) parseArcaneGrimoire() ast.Statement {
 func (p *Parser) parseArcaneMethod() *ast.ArcaneSpell {
 	p.nextToken()
 	if !p.expectPeek(token.ARCANESPELL) {
-		p.errors = append(p.errors, "expected 'arcanespell' after '@'")
+		parseErr := object.NewParseError("expected 'arcanespell' after '@'", p.currToken.Position).
+			WithExpectation("arcanespell", string(p.peekToken.Type)).
+			WithContext(p.getContext(p.currToken.Position, 2))
+		p.errors = append(p.errors, parseErr)
 		return nil
 	}
 	if p.currToken.Literal != "arcanespell" {
-		p.errors = append(p.errors, "expected 'arcanespell' after '@', got "+p.currToken.Literal)
+		parseErr := object.NewParseError("expected 'arcanespell' after '@', got "+p.currToken.Literal, p.currToken.Position).
+			WithExpectation("arcanespell", p.currToken.Literal).
+			WithContext(p.getContext(p.currToken.Position, 2))
+		p.errors = append(p.errors, parseErr)
 		return nil
 	}
 
@@ -384,7 +400,10 @@ func (p *Parser) parseArcaneMethod() *ast.ArcaneSpell {
 	}
 
 	if !p.peekTokenIs(token.SPELL) && !p.peekTokenIs(token.INIT) {
-		p.errors = append(p.errors, "expected 'spell' or 'init' after '@arcanespell'")
+		parseErr := object.NewParseError("expected 'spell' or 'init' after '@arcanespell'", p.currToken.Position).
+			WithExpectation("spell or init", string(p.peekToken.Type)).
+			WithContext(p.getContext(p.currToken.Position, 2))
+		p.errors = append(p.errors, parseErr)
 		return nil
 	}
 	p.nextToken()
@@ -393,7 +412,10 @@ func (p *Parser) parseArcaneMethod() *ast.ArcaneSpell {
 	if p.currToken.Type == token.SPELL {
 
 		if !p.expectPeek(token.IDENT) {
-			p.errors = append(p.errors, "expected method name after 'spell'")
+			parseErr := object.NewParseError("expected method name after 'spell'", p.currToken.Position).
+			WithExpectation("identifier", string(p.peekToken.Type)).
+			WithContext(p.getContext(p.currToken.Position, 2))
+		p.errors = append(p.errors, parseErr)
 			return nil
 		}
 		arcMethod.Name = &ast.Identifier{Token: p.currToken, Value: p.currToken.Literal}
@@ -532,12 +554,16 @@ func (p *Parser) parseAttemptStatement() ast.Statement {
 }
 
 func (p *Parser) parseEnsnareStatement() ast.Statement {
-	p.errors = append(p.errors, "Unexpected 'ensnare' outside of 'attempt' block")
+	parseErr := object.NewParseError("Unexpected 'ensnare' outside of 'attempt' block", p.currToken.Position).
+		WithContext(p.getContext(p.currToken.Position, 2))
+	p.errors = append(p.errors, parseErr)
 	return nil
 }
 
 func (p *Parser) parseResolveStatement() ast.Statement {
-	p.errors = append(p.errors, "Unexpected 'resolve' outside of 'attempt' block")
+	parseErr := object.NewParseError("Unexpected 'resolve' outside of 'attempt' block", p.currToken.Position).
+		WithContext(p.getContext(p.currToken.Position, 2))
+	p.errors = append(p.errors, parseErr)
 	return nil
 }
 
@@ -765,7 +791,9 @@ func (p *Parser) parseFloatLiteral() ast.Expression {
 	value, err := strconv.ParseFloat(p.currToken.Literal, 64)
 	if err != nil {
 		msg := fmt.Sprintf("could not parse %q as float", p.currToken.Literal)
-		p.errors = append(p.errors, msg)
+		parseErr := object.NewParseError(msg, p.currToken.Position).
+			WithContext(p.getContext(p.currToken.Position, 2))
+		p.errors = append(p.errors, parseErr)
 		return nil
 	}
 	lit.Value = value
@@ -870,8 +898,29 @@ func (p *Parser) registerStatement(tokenType token.TokenType, fn func() ast.Stat
 	p.statementParseFns[tokenType] = fn
 }
 
+// Errors returns the parser errors for backward compatibility
 func (p *Parser) Errors() []string {
+	// For backward compatibility, return the string errors
+	if len(p.parserErrors) > 0 {
+		return p.parserErrors
+	}
+	
+	// Convert structured errors to strings if needed
+	stringErrors := make([]string, len(p.errors))
+	for i, err := range p.errors {
+		stringErrors[i] = err.String()
+	}
+	return stringErrors
+}
+
+// GetStructuredErrors returns the structured error objects with more detailed information
+func (p *Parser) GetStructuredErrors() []*object.ParseError {
 	return p.errors
+}
+
+// getContext extracts code context from the source
+func (p *Parser) getContext(position token.Position, lines int) string {
+	return object.GetContextFromSource(p.source, position, lines)
 }
 
 func (p *Parser) parseStringLiteral() ast.Expression {
@@ -885,7 +934,15 @@ func (p *Parser) parseBoolean() ast.Expression {
 
 func (p *Parser) peekError(t token.TokenType) {
 	msg := fmt.Sprintf("expected next token to be %s, got %s instead", t, p.peekToken.Type)
-	p.errors = append(p.errors, msg)
+	
+	// Create structured error with position information
+	parseErr := object.NewParseError(msg, p.peekToken.Position).
+		WithExpectation(string(t), string(p.peekToken.Type)).
+		WithContext(p.getContext(p.peekToken.Position, 2))
+	
+	// Add to both error slices for compatibility
+	p.errors = append(p.errors, parseErr)
+	p.parserErrors = append(p.parserErrors, msg)
 }
 
 func (p *Parser) nextToken() {
@@ -927,7 +984,9 @@ func (p *Parser) parseStatement() ast.Statement {
 	case token.IF:
 		return p.parseIfStatement()
 	case token.ELSE:
-		p.errors = append(p.errors, "Unexpected 'else' without matching 'if'")
+		parseErr := object.NewParseError("Unexpected 'else' without matching 'if'", p.currToken.Position).
+			WithContext(p.getContext(p.currToken.Position, 2))
+		p.errors = append(p.errors, parseErr)
 		return nil
 	case token.WHILE:
 		return p.parseWhileStatement()
@@ -1096,11 +1155,16 @@ func (p *Parser) parseAssignmentStatement() *ast.AssignStatement {
 		
 		// Check if the left-hand side is a valid assignment target
 		if !p.isValidAssignmentTarget(stmt.Name) {
-			p.errors = append(p.errors, fmt.Sprintf("Invalid assignment target: %T", stmt.Name))
+			msg := fmt.Sprintf("Invalid assignment target: %T", stmt.Name)
+			parseErr := object.NewParseError(msg, p.currToken.Position).
+				WithContext(p.getContext(p.currToken.Position, 2))
+			p.errors = append(p.errors, parseErr)
 			return nil
 		}
 	} else {
-		p.errors = append(p.errors, "Invalid assignment target")
+		parseErr := object.NewParseError("Invalid assignment target", p.currToken.Position).
+			WithContext(p.getContext(p.currToken.Position, 2))
+		p.errors = append(p.errors, parseErr)
 		return nil
 	}
 
@@ -1151,8 +1215,19 @@ func (p *Parser) expectPeek(t token.TokenType) bool {
 		p.nextToken()
 		return true
 	}
+	
+	// Create better error message
 	msg := fmt.Sprintf("expected next token to be %s, got %s instead", t, p.peekToken.Type)
-	p.errors = append(p.errors, msg)
+	
+	// Create structured error with position information
+	parseErr := object.NewParseError(msg, p.peekToken.Position).
+		WithExpectation(string(t), string(p.peekToken.Type)).
+		WithContext(p.getContext(p.peekToken.Position, 2))
+	
+	// Add to both error slices for compatibility
+	p.errors = append(p.errors, parseErr)
+	p.parserErrors = append(p.parserErrors, msg)
+	
 	return false
 }
 
@@ -1202,7 +1277,15 @@ func (p *Parser) currPrecedence() int {
 
 func (p *Parser) noPrefixParseFnError(t token.TokenType) {
 	msg := fmt.Sprintf("no prefix parse function for %s found", t)
-	p.errors = append(p.errors, msg)
+	
+	// Create structured error with position information
+	parseErr := object.NewParseError(msg, p.currToken.Position).
+		WithExpectation("", string(t)).
+		WithContext(p.getContext(p.currToken.Position, 2))
+	
+	// Add to both error slices for compatibility
+	p.errors = append(p.errors, parseErr)
+	p.parserErrors = append(p.parserErrors, msg)
 }
 
 func (p *Parser) parseIdentifier() ast.Expression {
@@ -1218,7 +1301,8 @@ func (p *Parser) parseIntegerLiteral() ast.Expression {
 	value, err := strconv.ParseInt(p.currToken.Literal, 0, 64)
 	if err != nil {
 		msg := fmt.Sprintf("could not parse %q as integer", p.currToken.Literal)
-		p.errors = append(p.errors, msg)
+		parseErr := object.NewParseError(msg, p.currToken.Position).WithContext(p.getContext(p.currToken.Position, 2))
+			p.errors = append(p.errors, parseErr)
 		return nil
 	}
 
@@ -1250,7 +1334,9 @@ func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 	expression.Right = p.parseExpression(precedence)
 	if expression.Right == nil {
 		msg := fmt.Sprintf("no right-hand expression for infix operator %q", expression.Operator)
-		p.errors = append(p.errors, msg)
+		parseErr := object.NewParseError(msg, p.currToken.Position).
+			WithContext(p.getContext(p.currToken.Position, 2))
+		p.errors = append(p.errors, parseErr)
 		return nil
 	}
 	return expression
@@ -1538,19 +1624,27 @@ func (p *Parser) parseFunctionDefinition() ast.Statement {
 		}
 	} else {
 
-		p.errors = append(p.errors, "Expected function name or 'init' after 'spell'")
+		parseErr := object.NewParseError("Expected function name or 'init' after 'spell'", p.currToken.Position).
+		WithContext(p.getContext(p.currToken.Position, 2))
+	p.errors = append(p.errors, parseErr)
 		return nil
 	}
 
 	if !p.expectPeek(token.LPAREN) {
-		p.errors = append(p.errors, "Expected '(' after function name")
+		parseErr := object.NewParseError("Expected '(' after function name", p.currToken.Position).
+			WithExpectation("(", string(p.peekToken.Type)).
+			WithContext(p.getContext(p.currToken.Position, 2))
+		p.errors = append(p.errors, parseErr)
 		return nil
 	}
 
 	stmt.Parameters = p.parseFunctionParameters()
 
 	if !p.expectPeek(token.COLON) {
-		p.errors = append(p.errors, "Expected ':' after parameter list")
+		parseErr := object.NewParseError("Expected ':' after parameter list", p.currToken.Position).
+			WithExpectation(":", string(p.peekToken.Type)).
+			WithContext(p.getContext(p.currToken.Position, 2))
+		p.errors = append(p.errors, parseErr)
 		return nil
 	}
 
@@ -1758,7 +1852,9 @@ func (p *Parser) parseGrimoireDefinition() ast.Statement {
 			p.nextToken()
 			fnStmt := p.parseFunctionDefinition()
 			if fnStmt == nil {
-				p.errors = append(p.errors, "Invalid function definition in single-line grimoire")
+				parseErr := object.NewParseError("Invalid function definition in single-line grimoire", p.currToken.Position).
+					WithContext(p.getContext(p.currToken.Position, 2))
+				p.errors = append(p.errors, parseErr)
 				return stmt
 			}
 			fnDef := fnStmt.(*ast.FunctionDefinition)
@@ -1777,7 +1873,10 @@ func (p *Parser) parseImportStatement() ast.Statement {
 	stmt := &ast.ImportStatement{Token: p.currToken}
 
 	if !p.expectPeek(token.STRING) {
-		p.errors = append(p.errors, "expected file path string after 'import'")
+		parseErr := object.NewParseError("expected file path string after 'import'", p.currToken.Position).
+			WithExpectation("string", string(p.peekToken.Type)).
+			WithContext(p.getContext(p.currToken.Position, 2))
+		p.errors = append(p.errors, parseErr)
 		return nil
 	}
 	stmt.FilePath = &ast.StringLiteral{
@@ -1788,7 +1887,10 @@ func (p *Parser) parseImportStatement() ast.Statement {
 	if p.peekTokenIs(token.AS) {
 		p.nextToken()
 		if !p.expectPeek(token.IDENT) {
-			p.errors = append(p.errors, "expected alias name after 'as'")
+			parseErr := object.NewParseError("expected alias name after 'as'", p.currToken.Position).
+				WithExpectation("identifier", string(p.peekToken.Type)).
+				WithContext(p.getContext(p.currToken.Position, 2))
+			p.errors = append(p.errors, parseErr)
 			return nil
 		}
 		stmt.Alias = &ast.Identifier{

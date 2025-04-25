@@ -212,7 +212,14 @@ func tryParseAndEval(input string, out io.Writer, env *object.Environment) (obje
 		if isIncompleteParse(p.Errors()) {
 			return nil, false
 		}
-		printParserErrors(out, p.Errors())
+		
+		// Check for structured errors first
+		structuredErrors := p.GetStructuredErrors()
+		if len(structuredErrors) > 0 {
+			printParserErrors(out, structuredErrors)
+		} else {
+			printParserErrors(out, p.Errors())
+		}
 		return nil, true
 	}
 
@@ -239,12 +246,24 @@ func isIncompleteParse(errs []string) bool {
 	return false
 }
 
-func printParserErrors(out io.Writer, errors []string) {
+func printParserErrors(out io.Writer, errors interface{}) {
 	// fmt.Fprint(out, ODINS_EYE)
 	io.WriteString(out, "Sorry Friend! Odin's eye sees all and you seem to have errors.\n")
 	io.WriteString(out, "Parser Errors:\n")
-	for _, msg := range errors {
-		fmt.Fprintf(out, "\t%s\n", msg)
+	
+	// Try to access the structured errors if available
+	if parseErrors, ok := errors.([]*object.ParseError); ok && len(parseErrors) > 0 {
+		// Enhanced error display
+		for _, err := range parseErrors {
+			fmt.Fprintln(out, err.String())
+		}
+	} else if stringErrors, ok := errors.([]string); ok {
+		// Fallback to basic error format
+		for _, msg := range stringErrors {
+			fmt.Fprintf(out, "\t%s\n", msg)
+		}
+	} else {
+		fmt.Fprintf(out, "\tUnexpected error type: %T\n", errors)
 	}
 }
 
@@ -259,12 +278,18 @@ func ProcessFile(filePath string, out io.Writer, env *object.Environment) error 
 	}
 
 	// Tokenize, parse, and evaluate the file contents
-	l := lexer.New(string(content))
+	l := lexer.New(string(content), filePath)
 	p := parser.New(l)
 	program := p.ParseProgram()
 
 	if len(p.Errors()) > 0 {
-		printParserErrors(out, p.Errors())
+		// Check for structured errors first
+		structuredErrors := p.GetStructuredErrors()
+		if len(structuredErrors) > 0 {
+			printParserErrors(out, structuredErrors)
+		} else {
+			printParserErrors(out, p.Errors())
+		}
 		return fmt.Errorf("file %s contains syntax errors", filePath)
 	}
 

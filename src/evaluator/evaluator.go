@@ -1804,7 +1804,7 @@ func evalIfExpression(ie *ast.IfStatement, env *object.Environment) object.Objec
 
 func newError(format string, a ...interface{}) *object.Error {
 	// Create the error with the formatted message
-	errorObj := object.NewError(fmt.Sprintf(format, a...))
+	errorObj := object.NewError(object.RuntimeError, fmt.Sprintf(format, a...))
 	
 	// Add the current call stack to the error
 	if ctx != nil {
@@ -1819,7 +1819,7 @@ func newError(format string, a ...interface{}) *object.Error {
 // Enhanced error for assignment operations with detailed debugging
 func newAssignmentError(format string, node ast.Node, a ...interface{}) *object.Error {
 	// Create the basic error
-	errorObj := object.NewError(fmt.Sprintf(format, a...))
+	errorObj := object.NewError(object.TypeError, fmt.Sprintf(format, a...))
 	
 	// Add node details to provide more context
 	var details string

@@ -57,16 +57,29 @@ func main() {
 		program := p.ParseProgram()
 		
 		if len(p.Errors()) > 0 {
-			for _, msg := range p.Errors() {
-				fmt.Fprintf(os.Stderr, "Error: %s\n", msg)
+			// Enhanced error display with structured errors
+			structuredErrors := p.GetStructuredErrors()
+			if len(structuredErrors) > 0 {
+				// Use the enhanced error format
+				for _, err := range structuredErrors {
+					fmt.Fprintln(os.Stderr, err.String())
+				}
+			} else {
+				// Fallback to basic error format
+				for _, msg := range p.Errors() {
+					fmt.Fprintf(os.Stderr, "Error: %s\n", msg)
+				}
 			}
 			os.Exit(1)
 		}
 		
+		// Initialize the evaluation context with filename for better error tracking
+		evaluator.InitEvalContext(filename)
+		
 		// Evaluate program
 		result := evaluator.Eval(program, env)
 		
-		// Check for errors
+		// Check for errors with improved display
 		if result != nil && result.Type() == object.ERROR_OBJ || result.Type() == object.CUSTOM_ERROR_OBJ {
 			fmt.Fprintf(os.Stderr, "%s\n", result.Inspect())
 			os.Exit(1)

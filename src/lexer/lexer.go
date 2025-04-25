@@ -15,6 +15,7 @@ type Lexer struct {
 	currLine    string
 	finished    bool
 	fileName    string
+	Input       string  // Original input for error context
 
 	indentResolved bool
 }
@@ -31,6 +32,7 @@ func New(input string, fileName ...string) *Lexer {
 		lines:       rawLines,
 		indentStack: []int{0},
 		fileName:    filename,
+		Input:       input,
 	}
 	if len(l.lines) == 0 {
 		l.finished = true
