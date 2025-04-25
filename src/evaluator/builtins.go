@@ -31,16 +31,6 @@ var builtins = map[string]*object.Builtin{
 				return &object.Integer{Value: int64(len(arg.Value))}
 			case *object.Array:
 				return &object.Integer{Value: int64(len(arg.Elements))}
-			case *object.Instance:
-				// Handle Array instances
-				if arg.Grimoire != nil && arg.Grimoire.Name == "Array" {
-					if elementsObj, ok := arg.Env.Get("elements"); ok {
-						if array, ok := elementsObj.(*object.Array); ok {
-							return &object.Integer{Value: int64(len(array.Elements))}
-						}
-					}
-				}
-				return newError("argument to `len` not supported, got %s", args[0].Type())
 			default:
 				return newError("argument to `len` not supported, got %s",
 					args[0].Type())
